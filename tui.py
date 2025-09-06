@@ -28,6 +28,7 @@ def get_tui(handler):
 
     def in_handler(buff):
         handler(input_field.text)
+        return False
 
     # When Enter is pressed, exit the app and return the text as the result.
     input_field.accept_handler = in_handler
