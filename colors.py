@@ -1,6 +1,0 @@
-BOLD = "<b>"
-EBOLD = "</b>"
-BLUE = "<ansicyan>"
-EBLUE = "</ansicyan>"
-RED = "<ansired>"
-ERED = "</ansired>"

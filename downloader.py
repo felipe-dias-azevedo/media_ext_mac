@@ -4,7 +4,7 @@ import shutil
 import yt_dlp
 import imageio_ffmpeg
 
-def download(url: str, output_file: str):
+def download(url: str, output_file: str, logger) -> str:
     """Download best audio only as MP3, no metadata, no thumbnail"""
 
     ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
@@ -15,6 +15,7 @@ def download(url: str, output_file: str):
 
         ydl_opts = {
             'format': 'bestaudio/best',
+            'logger': logger,
             'outtmpl': temp_out + '.%(ext)s',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
