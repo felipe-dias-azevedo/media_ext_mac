@@ -37,20 +37,16 @@ class DownloaderLogger:
         self.handler(self.content)
 
     def debug(self, msg):
-        text = f"{msg}"
-        self.output(text)
+        self.output(f"{msg}")
 
     def info(self, msg):
-        text = f"[INFO] {msg}"
-        self.output(text)
+        self.output(f"[INFO] {msg}")
 
     def warning(self, msg):
-        text = f"[WARNING] {msg}"
-        self.output(text)
+        self.output(f"[WARNING] {msg}")
 
     def error(self, msg):
-        text = f"[ERROR] {msg}"
-        self.output(text)
+        self.output(f"[ERROR] {msg}")
 
 class AppDelegate(NSObject):
     def applicationDidFinishLaunching_(self, notification):
