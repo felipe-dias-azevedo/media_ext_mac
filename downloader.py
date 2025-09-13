@@ -4,19 +4,17 @@ import shutil
 import yt_dlp
 import imageio_ffmpeg
 
-def download(url: str, output_file: str, logger) -> str:
+def download(url: str, logger) -> str:
     """Download best audio only as MP3, no metadata, no thumbnail"""
 
     ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory(delete=False) as tmpdir:
         
-        temp_out = os.path.join(tmpdir, "audio")
-
         ydl_opts = {
             'format': 'bestaudio/best',
             'logger': logger,
-            'outtmpl': temp_out + '.%(ext)s',
+            'outtmpl': os.path.join(tmpdir, '%(title)s.%(ext)s'),
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -34,12 +32,17 @@ def download(url: str, output_file: str, logger) -> str:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        # Find the normalized MP3
-        temp_mp3 = temp_out + ".mp3"
-        if not os.path.exists(temp_mp3):
-            raise FileNotFoundError("yt-dlp did not produce an MP3")
+        for file in os.listdir(tmpdir):
+            if file.endswith('.mp3'):
+                return os.path.join(tmpdir, file)
+        
+        logger.error("Downloaded file not found")
+        raise FileNotFoundError("Downloaded file not found")
 
-        # Move to final location
-        shutil.move(temp_mp3, output_file + ".mp3")
-
-        return output_file + ".mp3"
+    
+def move_file(src_path: str, dest_path: str):
+    """Move a file from src_path to dest_path, overwriting if needed."""
+    
+    shutil.move(src_path, dest_path)
+    shutil.rmtree(os.path.dirname(src_path), ignore_errors=True)
+    return dest_path

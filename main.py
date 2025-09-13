@@ -1,3 +1,13 @@
+import os
+from Foundation import NSBundle
+
+# when running inside the .app bundle, the ffmpeg binary will be in Resources/ffmpeg
+bundle = NSBundle.mainBundle()
+if bundle and bundle.resourcePath():
+    bundled_ffmpeg = os.path.join(bundle.resourcePath(), "ffmpeg")
+    if os.path.exists(bundled_ffmpeg):
+        os.environ["IMAGEIO_FFMPEG_EXE"] = bundled_ffmpeg
+
 from Cocoa import (
     NSObject, NSApplication, NSWindow, NSTextField, NSScrollView,
     NSTextView, NSButton, NSMakeRect, NSMenu, NSMenuItem
@@ -7,10 +17,13 @@ from AppKit import (
     NSWindowStyleMaskTitled, NSWindowStyleMaskClosable, NSWindowStyleMaskResizable,
     NSBackingStoreBuffered,
     NSViewWidthSizable, NSViewHeightSizable, NSMakeSize,
-    NSProgressIndicator, NSProgressIndicatorStyleSpinning
+    NSProgressIndicator, NSProgressIndicatorStyleSpinning,
+    NSModalResponseOK
 )
+from AppKit import NSSavePanel
+import shutil
 from AppKit import NSAlert
-from downloader import download
+from downloader import download, move_file
 import threading
 
 TOP_PAD = 20
@@ -61,12 +74,13 @@ class AppDelegate(NSObject):
                  NSWindowStyleMaskClosable |
                  NSWindowStyleMaskResizable)
         self.window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
-            NSMakeRect(100, 100, 520, 340), style, NSBackingStoreBuffered, False
+            NSMakeRect(100, 100, 720, 480), style, NSBackingStoreBuffered, False
         )
         self.window.setTitle_("media_ext_py")
         # Ensure the top row always fits (input + button + spinner)
         min_w = SIDE_PAD + INPUT_MIN_W + SPACING + BTN_W + SPINNER_SPACING + SPINNER_SIZE + SIDE_PAD
-        self.window.setContentMinSize_(NSMakeSize(min_w, 260))
+        # increase minimum content height to match larger window
+        self.window.setContentMinSize_(NSMakeSize(min_w, 360))
         self.window.makeKeyAndOrderFront_(None)
 
         content = self.window.contentView()
@@ -96,11 +110,7 @@ class AppDelegate(NSObject):
         if hasattr(self.spinner, "setUsesThreadedAnimation_"):
             self.spinner.setUsesThreadedAnimation_(True)
         content.addSubview_(self.spinner)
-        # Ensure spinner is stopped/hidden by default
-        try:
-            self.spinner.stopAnimation_(None)
-        except Exception:
-            pass
+        self.spinner.stopAnimation_(None)
 
         # Log (scrollable) — grows with window
         self.scroll = NSScrollView.alloc().initWithFrame_(NSMakeRect(0, 0, 100, 100))
@@ -211,8 +221,6 @@ class AppDelegate(NSObject):
             alert.runModal()
             return
 
-        self.input.setStringValue_("")
-
         self.logger.info(f"Starting download for URL: {text}")
         # Disable UI and show spinner, then run download in background thread
         self.setBusy_(True)
@@ -220,61 +228,58 @@ class AppDelegate(NSObject):
 
     def _download_thread(self, url):
         try:
-            out = download(url, "audio", self.logger)
-            self.logger.info(f"Download finished successfully: {out}")
+            path = download(url, self.logger)
+            self.logger.info(f"Download finished successfully: {path}")
+            
+            self.performSelectorOnMainThread_withObject_waitUntilDone_("presentSavePanelForPath:", path, True)
+
         except Exception as e:
             self.logger.error(f"Download failed: {e}")
         finally:
-            # Re-enable UI on the main thread
-            try:
-                self.performSelectorOnMainThread_withObject_waitUntilDone_("setBusy:", False, False)
-            except Exception:
-                # Fallback: call directly if we're already on main thread (unlikely)
-                try:
-                    self.setBusy_(False)
-                except Exception:
-                    pass
+            self.performSelectorOnMainThread_withObject_waitUntilDone_("setBusy:", False, False)
 
-    def setBusy_(self, busy):
-        # Runs on main thread; toggle spinner and enable/disable controls
-        try:
-            is_busy = bool(busy)
-        except Exception:
-            is_busy = False
+    def setBusy_(self, is_busy):
+
+        self.button.setEnabled_(not is_busy)
+        self.input.setEnabled_(not is_busy)
+        self.input.setEditable_(not is_busy)
 
         if is_busy:
-            try:
-                self.spinner.startAnimation_(None)
-            except Exception:
-                pass
-            try:
-                self.button.setEnabled_(False)
-            except Exception:
-                pass
-            try:
-                self.input.setEnabled_(False)
-            except Exception:
-                # Fall back to making it non-editable
-                try:
-                    self.input.setEditable_(False)
-                except Exception:
-                    pass
+            self.spinner.startAnimation_(None)
         else:
-            try:
-                self.spinner.stopAnimation_(None)
-            except Exception:
-                pass
-            try:
-                self.button.setEnabled_(True)
-            except Exception:
-                pass
-            try:
-                self.input.setEnabled_(True)
-            except Exception:
-                try:
-                    self.input.setEditable_(True)
-                except Exception:
-                    pass
+            self.spinner.stopAnimation_(None)
+            self.input.setStringValue_("")
+
+    def presentSavePanelForPath_(self, src_path):
+
+        save_path = self.openSavePanel_(src_path)
+        while save_path is None:
+            save_path = self.openSavePanel_(src_path)
+
+        self.logger.info(f"Saving to: {save_path}")
+
+        move_file(src_path, save_path)
+
+        self.logger.info("File saved successfully.")
+
+    def openSavePanel_(self, src_path):
+        try:
+            panel = NSSavePanel.savePanel()
+            panel.setAllowsOtherFileTypes_(False)
+            panel.setAllowedFileTypes_(["mp3"])
+
+            suggested = os.path.basename(src_path)
+            panel.setNameFieldStringValue_(suggested)
+            
+            resp = panel.runModal()
+            
+            if not resp or resp != NSModalResponseOK:
+                return None
+            
+            return panel.URL().path()
+        except Exception as e:
+            self.logger.error(f"Error showing save dialog: {e}")
+            return None
 
 
 if __name__ == "__main__":
