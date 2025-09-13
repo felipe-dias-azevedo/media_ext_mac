@@ -22,7 +22,7 @@ def download(url: str, logger) -> str:
             }],
             'ffmpeg_location': ffmpeg_path,
             'postprocessor_args': {
-                'ffmpeg': ['-af', 'loudnorm=I=-16:TP=-1.5:LRA=11'],
+                'ffmpeg': ['-af', 'loudnorm=I=-13:TP=-1.0:LRA=6'],
             },
             'addmetadata': False,
             'writethumbnail': False,
