@@ -76,7 +76,7 @@ class AppDelegate(NSObject):
         self.window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             NSMakeRect(100, 100, 720, 480), style, NSBackingStoreBuffered, False
         )
-        self.window.setTitle_("media_ext_py")
+        self.window.setTitle_("Media Extractor")
         # Ensure the top row always fits (input + button + spinner)
         min_w = SIDE_PAD + INPUT_MIN_W + SPACING + BTN_W + SPINNER_SPACING + SPINNER_SIZE + SIDE_PAD
         # increase minimum content height to match larger window
