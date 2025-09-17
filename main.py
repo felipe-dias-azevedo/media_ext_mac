@@ -14,15 +14,15 @@ from Cocoa import (
 )
 from AppKit import (
     NSApplicationActivationPolicyRegular,
+    NSToolbar,
+    NSToolbarDisplayModeIconAndLabel,
     NSWindowStyleMaskTitled, NSWindowStyleMaskClosable, NSWindowStyleMaskResizable,
     NSBackingStoreBuffered,
     NSViewWidthSizable, NSViewHeightSizable, NSMakeSize,
     NSProgressIndicator, NSProgressIndicatorStyleSpinning,
     NSModalResponseOK
 )
-from AppKit import NSSavePanel
-import shutil
-from AppKit import NSAlert
+from AppKit import NSSavePanel, NSAlert 
 from downloader import download, move_file
 import threading
 
@@ -81,6 +81,14 @@ class AppDelegate(NSObject):
         min_w = SIDE_PAD + INPUT_MIN_W + SPACING + BTN_W + SPINNER_SPACING + SPINNER_SIZE + SIDE_PAD
         # increase minimum content height to match larger window
         self.window.setContentMinSize_(NSMakeSize(min_w, 360))
+        # Add a toolbar
+        toolbar = NSToolbar.alloc().initWithIdentifier_("mainToolbar")
+        # We want the toolbar to show only the title by default; include a sidebar toggle item
+        toolbar.setDisplayMode_(NSToolbarDisplayModeIconAndLabel)
+        toolbar.setAllowsUserCustomization_(False)
+        toolbar.setAutosavesConfiguration_(False)
+        toolbar.setDelegate_(self)
+        self.window.setToolbar_(toolbar)
         self.window.makeKeyAndOrderFront_(None)
 
         content = self.window.contentView()
