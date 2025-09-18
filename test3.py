@@ -9,28 +9,26 @@ class AppDelegate(NSObject):
     pass  # or implement methods if needed
 
 class SimpleXibDemoController(NSWindowController):
-    counterTextField = IBOutlet()
+    logTextView = IBOutlet()
+    sidebarCollectionView = IBOutlet()
+    spinnerLoader = IBOutlet()
+    statusLabel = IBOutlet()
+    urlTextField = IBOutlet()
 
     def windowDidLoad(self):
         NSWindowController.windowDidLoad(self)
-        self.count = 0
 
     @IBAction
-    def increment_(self, sender):
-        self.count += 1
-        self.updateDisplay()
+    def urlTextFieldAction_(self, sender):
+        self.spinnerLoader.stopAnimation_(self)
+        self.statusLabel.setStringValue_(sender.stringValue())
+        self.logTextView.setString_("URL Entered: " + sender.stringValue())
 
     @IBAction
-    def decrement_(self, sender):
-        self.count -= 1
-        self.updateDisplay()
-
-    def updateDisplay(self):
-        # NSTextField expects a string
-        try:
-            self.counterTextField.setStringValue_(str(self.count))
-        except Exception:
-            pass
+    def downloadButtonAction_(self, sender):
+        self.spinnerLoader.startAnimation_(self)
+        self.statusLabel.setStringValue_("Downloading... " + self.urlTextField.stringValue())
+        self.logTextView.setString_("Downloading... " + self.urlTextField.stringValue())
 
 if __name__ == "__main__":
     app = NSApplication.sharedApplication()

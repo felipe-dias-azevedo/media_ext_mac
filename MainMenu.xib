@@ -7,6 +7,11 @@
     <objects>
         <customObject id="-2" userLabel="File's Owner" customClass="SimpleXibDemoController">
             <connections>
+                <outlet property="logTextView" destination="ss0-Fd-ySL" id="hsT-Uh-qpm"/>
+                <outlet property="sidebarCollectionView" destination="WLR-l8-BvH" id="Hr4-1Y-lam"/>
+                <outlet property="spinnerLoader" destination="apR-Y0-Rir" id="Cjs-PW-066"/>
+                <outlet property="statusLabel" destination="Nlx-Gj-qVn" id="iEw-z0-5QT"/>
+                <outlet property="urlTextField" destination="9cm-SD-1H6" id="GA5-Rn-Mmm"/>
                 <outlet property="window" destination="QvC-M9-y7g" id="bl9-iy-4j4"/>
             </connections>
         </customObject>
@@ -689,7 +694,7 @@
                         <rect key="frame" x="0.0" y="0.0" width="1633" height="700"/>
                         <subviews>
                             <visualEffectView misplaced="YES" blendingMode="behindWindow" material="sidebar" state="followsWindowActiveState" id="GbT-VH-ltU">
-                                <rect key="frame" x="0.0" y="0.0" width="155" height="700"/>
+                                <rect key="frame" x="0.0" y="0.0" width="163" height="700"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <subviews>
                                     <scrollView wantsLayer="YES" fixedFrame="YES" borderType="none" autohidesScrollers="YES" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" usesPredominantAxisScrolling="NO" translatesAutoresizingMaskIntoConstraints="NO" id="mLC-xe-yNn">
@@ -722,7 +727,7 @@
                                 </constraints>
                             </visualEffectView>
                             <stackView distribution="equalCentering" orientation="vertical" alignment="leading" spacing="20" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="YHt-IR-oke">
-                                <rect key="frame" x="156" y="0.0" width="1477" height="700"/>
+                                <rect key="frame" x="164" y="0.0" width="1469" height="700"/>
                                 <subviews>
                                     <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="10" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="F9g-wa-LE0">
                                         <rect key="frame" x="20" y="630" width="1392" height="70"/>
@@ -742,6 +747,9 @@
                                                     <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
                                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                                                 </textFieldCell>
+                                                <connections>
+                                                    <action selector="urlTextFieldAction:" target="-2" id="UHa-8v-e2i"/>
+                                                </connections>
                                             </textField>
                                             <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="OnG-gd-IbY">
                                                 <rect key="frame" x="1278" y="18" width="95" height="32"/>
@@ -749,6 +757,9 @@
                                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                                     <font key="font" metaFont="system"/>
                                                 </buttonCell>
+                                                <connections>
+                                                    <action selector="downloadButtonAction:" target="-2" id="ERL-GU-eam"/>
+                                                </connections>
                                             </button>
                                             <progressIndicator maxValue="100" indeterminate="YES" controlSize="small" style="spinning" translatesAutoresizingMaskIntoConstraints="NO" id="apR-Y0-Rir">
                                                 <rect key="frame" x="1376" y="27" width="16" height="16"/>
@@ -782,7 +793,7 @@
                                                     <color key="textColor" name="textColor" catalog="System" colorSpace="catalog"/>
                                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                                                     <size key="minSize" width="1377" height="560"/>
-                                                    <size key="maxSize" width="1377" height="10000000"/>
+                                                    <size key="maxSize" width="1392" height="10000000"/>
                                                 </textView>
                                             </subviews>
                                         </clipView>
