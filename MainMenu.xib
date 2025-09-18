@@ -695,7 +695,7 @@
                         <rect key="frame" x="0.0" y="0.0" width="1633" height="700"/>
                         <subviews>
                             <visualEffectView misplaced="YES" blendingMode="behindWindow" material="sidebar" state="followsWindowActiveState" id="GbT-VH-ltU">
-                                <rect key="frame" x="0.0" y="0.0" width="167" height="700"/>
+                                <rect key="frame" x="0.0" y="0.0" width="176" height="700"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <subviews>
                                     <scrollView wantsLayer="YES" fixedFrame="YES" borderType="none" autohidesScrollers="YES" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" usesPredominantAxisScrolling="NO" translatesAutoresizingMaskIntoConstraints="NO" id="mLC-xe-yNn">
@@ -728,7 +728,7 @@
                                 </constraints>
                             </visualEffectView>
                             <stackView distribution="equalCentering" orientation="vertical" alignment="leading" spacing="20" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="YHt-IR-oke">
-                                <rect key="frame" x="168" y="0.0" width="1465" height="700"/>
+                                <rect key="frame" x="177" y="0.0" width="1456" height="700"/>
                                 <subviews>
                                     <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="10" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="F9g-wa-LE0">
                                         <rect key="frame" x="20" y="630" width="1392" height="70"/>
@@ -741,9 +741,9 @@
                                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                                                 </textFieldCell>
                                             </textField>
-                                            <textField focusRingType="none" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="9cm-SD-1H6">
+                                            <textField focusRingType="none" verticalHuggingPriority="750" contentType="url" translatesAutoresizingMaskIntoConstraints="NO" id="9cm-SD-1H6">
                                                 <rect key="frame" x="40" y="24" width="1235" height="22"/>
-                                                <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" placeholderString="https://" bezelStyle="round" id="djZ-7N-CK7">
+                                                <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" borderStyle="bezel" placeholderString="https://" bezelStyle="round" id="djZ-7N-CK7">
                                                     <font key="font" usesAppearanceFont="YES"/>
                                                     <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
                                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
@@ -788,7 +788,7 @@
                                             <rect key="frame" x="0.0" y="0.0" width="1377" height="560"/>
                                             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                             <subviews>
-                                                <textView wantsLayer="YES" importsGraphics="NO" richText="NO" verticallyResizable="YES" spellingCorrection="YES" smartInsertDelete="YES" id="ss0-Fd-ySL">
+                                                <textView wantsLayer="YES" editable="NO" importsGraphics="NO" richText="NO" verticallyResizable="YES" spellingCorrection="YES" smartInsertDelete="YES" id="ss0-Fd-ySL">
                                                     <rect key="frame" x="0.0" y="0.0" width="1377" height="560"/>
                                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                     <color key="textColor" name="textColor" catalog="System" colorSpace="catalog"/>

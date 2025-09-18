@@ -9,6 +9,7 @@ class AppDelegate(NSObject):
     pass  # or implement methods if needed
 
 class SimpleXibDemoController(NSWindowController):
+    window = IBOutlet()
     downloadButton = IBOutlet()
     logTextView = IBOutlet()
     sidebarCollectionView = IBOutlet()
@@ -18,6 +19,7 @@ class SimpleXibDemoController(NSWindowController):
 
     def windowDidLoad(self):
         NSWindowController.windowDidLoad(self)
+        self.window.makeKeyAndOrderFront_(None)
 
     @IBAction
     def urlTextFieldAction_(self, sender):
