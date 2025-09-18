@@ -9,6 +9,7 @@ class AppDelegate(NSObject):
     pass  # or implement methods if needed
 
 class SimpleXibDemoController(NSWindowController):
+    downloadButton = IBOutlet()
     logTextView = IBOutlet()
     sidebarCollectionView = IBOutlet()
     spinnerLoader = IBOutlet()
@@ -23,6 +24,7 @@ class SimpleXibDemoController(NSWindowController):
         self.spinnerLoader.stopAnimation_(self)
         self.statusLabel.setStringValue_(sender.stringValue())
         self.logTextView.setString_("URL Entered: " + sender.stringValue())
+        self.downloadButton.setEnabled_(not self.downloadButton.isEnabled())
 
     @IBAction
     def downloadButtonAction_(self, sender):

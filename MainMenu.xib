@@ -7,6 +7,7 @@
     <objects>
         <customObject id="-2" userLabel="File's Owner" customClass="SimpleXibDemoController">
             <connections>
+                <outlet property="downloadButton" destination="OnG-gd-IbY" id="exE-AN-F4w"/>
                 <outlet property="logTextView" destination="ss0-Fd-ySL" id="hsT-Uh-qpm"/>
                 <outlet property="sidebarCollectionView" destination="WLR-l8-BvH" id="Hr4-1Y-lam"/>
                 <outlet property="spinnerLoader" destination="apR-Y0-Rir" id="Cjs-PW-066"/>
@@ -694,7 +695,7 @@
                         <rect key="frame" x="0.0" y="0.0" width="1633" height="700"/>
                         <subviews>
                             <visualEffectView misplaced="YES" blendingMode="behindWindow" material="sidebar" state="followsWindowActiveState" id="GbT-VH-ltU">
-                                <rect key="frame" x="0.0" y="0.0" width="163" height="700"/>
+                                <rect key="frame" x="0.0" y="0.0" width="167" height="700"/>
                                 <autoresizingMask key="autoresizingMask"/>
                                 <subviews>
                                     <scrollView wantsLayer="YES" fixedFrame="YES" borderType="none" autohidesScrollers="YES" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" usesPredominantAxisScrolling="NO" translatesAutoresizingMaskIntoConstraints="NO" id="mLC-xe-yNn">
@@ -727,7 +728,7 @@
                                 </constraints>
                             </visualEffectView>
                             <stackView distribution="equalCentering" orientation="vertical" alignment="leading" spacing="20" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="YHt-IR-oke">
-                                <rect key="frame" x="164" y="0.0" width="1469" height="700"/>
+                                <rect key="frame" x="168" y="0.0" width="1465" height="700"/>
                                 <subviews>
                                     <stackView distribution="fill" orientation="horizontal" alignment="centerY" spacing="10" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="F9g-wa-LE0">
                                         <rect key="frame" x="20" y="630" width="1392" height="70"/>
@@ -761,7 +762,7 @@
                                                     <action selector="downloadButtonAction:" target="-2" id="ERL-GU-eam"/>
                                                 </connections>
                                             </button>
-                                            <progressIndicator maxValue="100" indeterminate="YES" controlSize="small" style="spinning" translatesAutoresizingMaskIntoConstraints="NO" id="apR-Y0-Rir">
+                                            <progressIndicator maxValue="100" displayedWhenStopped="NO" indeterminate="YES" controlSize="small" style="spinning" translatesAutoresizingMaskIntoConstraints="NO" id="apR-Y0-Rir">
                                                 <rect key="frame" x="1376" y="27" width="16" height="16"/>
                                             </progressIndicator>
                                         </subviews>
