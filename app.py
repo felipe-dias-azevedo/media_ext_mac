@@ -1,5 +1,5 @@
 from Cocoa import (
-    NSObject, NSApplication, NSApp, NSWindow, NSMenu, NSMenuItem,
+    NSObject, NSApplication, NSApp, NSWindow,
     NSView, NSViewController, NSScrollView, NSTextView, NSTextField, NSTableCellView,
     NSButton, NSImage, NSBox, NSStackView, NSProgressIndicator,
     NSSplitViewController, NSSplitViewItem, NSToolbar, NSImageView,
@@ -7,7 +7,7 @@ from Cocoa import (
     NSWindowStyleMaskMiniaturizable, NSWindowStyleMaskResizable, NSBackingStoreBuffered,
     NSApplicationActivationPolicyRegular, NSFont, NSColor, NSPasteboard,
     NSStringPboardType, NSLayoutConstraint, NSLayoutConstraintOrientationHorizontal,
-    NSMutableAttributedString, NSSize, NSRect, NSMakeSize, NSMakeRect, NSMakeRange,
+    NSMutableAttributedString, NSMakeSize, NSMakeRect, NSMakeRange,
     NSUserInterfaceLayoutOrientationHorizontal, NSBoxCustom, NSMomentaryPushInButton, NSControlSizeLarge,
     NSBezelStyleShadowlessSquare, NSImageOnly, NSFocusRingTypeNone, NSBezelStyleRounded, NSProgressIndicatorStyleSpinning,
     NSTextLayoutOrientationHorizontal, NSLineBreakByTruncatingMiddle, NSFontWeightMedium
@@ -15,9 +15,10 @@ from Cocoa import (
 from AppKit import (
     NSTableView, NSTableColumn, NSImageSymbolConfiguration
 )
-import AppKit as AK
 from Foundation import NSTimer
 import objc
+
+from menu import buildMenus
 
 
 # -----------------------------
@@ -53,10 +54,23 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         self.table = NSTableView.alloc().init()
         self.scroll = NSScrollView.alloc().init()
         self.data = [
-            MediaItem.group("January"),
+            MediaItem.group("Last 7 Days"),
             MediaItem.item("o-astronauta-de-marmore.mp3", "13/10/25, 16:24:20"),
             MediaItem.item("voce-nao-me-ensinou-a-te-esquecer.mp3", "13/10/25, 16:24:20"),
             MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
+            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
+            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
+            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
+            MediaItem.group("Last Month"),
+            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
+            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
+            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
+            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
+            MediaItem.group("Last Year"),
+            MediaItem.item("test.mp3", "13/10/25, 16:25:21"),
+            MediaItem.item("test.mp3", "13/10/25, 16:25:21"),
+            MediaItem.item("test.mp3", "13/10/25, 16:25:21"),
+            MediaItem.item("test.mp3", "13/10/25, 16:25:21"),
             MediaItem.item("test.mp3", "13/10/25, 16:25:21"),
         ]
         return self
@@ -429,7 +443,7 @@ class RootSplitVC(NSSplitViewController):
 
 
 # -----------------------------
-# App Delegate + Menus
+# App Delegate
 # -----------------------------
 
 class AppDelegate(NSObject):
@@ -437,7 +451,7 @@ class AppDelegate(NSObject):
 
     def applicationDidFinishLaunching_(self, notification):
         NSApp.setActivationPolicy_(NSApplicationActivationPolicyRegular)
-        self.buildMenus()
+        buildMenus()
 
         splitVC = RootSplitVC.alloc().init()
         rect = NSMakeRect(0, 0, 720, 480)
@@ -464,66 +478,6 @@ class AppDelegate(NSObject):
         if not flag and self.window is not None:
             self.window.makeKeyAndOrderFront_(None)
         return True
-
-    # Menus
-    def buildMenus(self):
-        main = NSMenu.alloc().init()
-
-        # App
-        appItem = NSMenuItem.alloc().init()
-        appMenu = NSMenu.alloc().init()
-        about = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("About MediaExtSwiftUI",
-                                                                       objc.selector(NSApp.orderFrontStandardAboutPanel_, signature=b"v@:@"),
-                                                                       "")
-        about.setTarget_(NSApp)
-        appMenu.addItem_(about)
-        appMenu.addItem_(NSMenuItem.separatorItem())
-        appMenu.addItemWithTitle_action_keyEquivalent_("Preferences…", None, ",")
-        appMenu.addItem_(NSMenuItem.separatorItem())
-        appMenu.addItemWithTitle_action_keyEquivalent_("Quit MediaExtSwiftUI",
-                                                       objc.selector(NSApp.terminate_, signature=b"v@:@"),
-                                                       "q")
-        appItem.setSubmenu_(appMenu)
-        main.addItem_(appItem)
-
-        # File
-        fileItem = NSMenuItem.alloc().init()
-        fileMenu = NSMenu.alloc().initWithTitle_("File")
-        fileMenu.addItemWithTitle_action_keyEquivalent_("Close Window",
-                                                        objc.selector(NSWindow.performClose_, signature=b"v@:@"),
-                                                        "w")
-        fileItem.setSubmenu_(fileMenu)
-        main.addItem_(fileItem)
-
-        # Edit
-        editItem = NSMenuItem.alloc().init()
-        editMenu = NSMenu.alloc().initWithTitle_("Edit")
-        editMenu.addItemWithTitle_action_keyEquivalent_("Cut", objc.selector(NSTextView.cut_, signature=b"v@:@"), "x")
-        editMenu.addItemWithTitle_action_keyEquivalent_("Copy", objc.selector(NSTextView.copy_, signature=b"v@:@"), "c")
-        editMenu.addItemWithTitle_action_keyEquivalent_("Paste", objc.selector(NSTextView.paste_, signature=b"v@:@"), "v")
-        editMenu.addItemWithTitle_action_keyEquivalent_("Select All", objc.selector(NSTextView.selectAll_, signature=b"v@:@"), "a")
-        editItem.setSubmenu_(editMenu)
-        main.addItem_(editItem)
-
-        # Window
-        winItem = NSMenuItem.alloc().init()
-        winMenu = NSMenu.alloc().initWithTitle_("Window")
-        winMenu.addItemWithTitle_action_keyEquivalent_("Minimize", objc.selector(NSWindow.performMiniaturize_, signature=b"v@:@"), "m")
-        winMenu.addItemWithTitle_action_keyEquivalent_("Zoom", objc.selector(NSWindow.performZoom_, signature=b"v@:@"), "")
-        winMenu.addItem_(NSMenuItem.separatorItem())
-        winMenu.addItemWithTitle_action_keyEquivalent_("Bring All to Front", objc.selector(NSApplication.arrangeInFront_, signature=b"v@:@"), "")
-        winItem.setSubmenu_(winMenu)
-        main.addItem_(winItem)
-        NSApp.setWindowsMenu_(winMenu)
-
-        # Help
-        helpItem = NSMenuItem.alloc().init()
-        helpMenu = NSMenu.alloc().initWithTitle_("Help")
-        helpMenu.addItemWithTitle_action_keyEquivalent_("MediaExtSwiftUI Help", None, "?")
-        helpItem.setSubmenu_(helpMenu)
-        main.addItem_(helpItem)
-
-        NSApp.setMainMenu_(main)
 
 
 def main():
