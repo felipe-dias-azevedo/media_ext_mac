@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="21507" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" colorMatched="YES">
+    <dependencies>
+        <deployment identifier="macosx"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="21507"/>
+    </dependencies>
+    <objects>
+        <!-- File's Owner -->
+        <customObject id="-2" userLabel="File's Owner" customClass="MainWindowController">
+            <connections>
+                <outlet property="window" destination="WINDOW_ID" id="WINDOW_OWNER_CONN"/>
+                <outlet property="inputField" destination="INPUT_ID" id="OUTLET_INPUT"/>
+                <outlet property="runButton" destination="BUTTON_ID" id="OUTLET_BUTTON"/>
+                <outlet property="spinner" destination="SPINNER_ID" id="OUTLET_SPINNER"/>
+                <outlet property="logsTextView" destination="LOGS_TEXTVIEW_ID" id="OUTLET_LOGS"/>
+            </connections>
+        </customObject>
+
+        <!-- First Responder & Application -->
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSApplication"/>
+
+        <!-- Main Window -->
+        <window id="WINDOW_ID" title="Toolbar + Stack + Logs" allowsToolTipsWhenApplicationIsInactive="NO" releasedWhenClosed="NO" animationBehavior="default" tabbingMode="preferred">
+            <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES"/>
+            <rect key="contentRect" x="0.0" y="0.0" width="760" height="520"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="1728" height="1117"/>
+            <value key="minSize" type="size" width="560" height="360"/>
+
+            <!-- Simple Toolbar -->
+            <toolbar key="toolbar" visible="YES" displayMode="iconAndLabel" sizeMode="regular" allowsUserCustomization="YES" id="TOOLBAR_ID">
+                <allowedItemIdentifiers>
+                    <string>NSToolbarFlexibleSpaceItem</string>
+                    <string>NSToolbarSpaceItem</string>
+                    <string>com.example.toolbar.item.example</string>
+                </allowedItemIdentifiers>
+                <defaultItemIdentifiers>
+                    <string>com.example.toolbar.item.example</string>
+                    <string>NSToolbarFlexibleSpaceItem</string>
+                </defaultItemIdentifiers>
+                <items>
+                    <toolbarItem label="Example" paletteLabel="Example" id="TOOLBAR_ITEM_ID"/>
+                </items>
+            </toolbar>
+
+            <view key="contentView" id="CONTENT_VIEW_ID">
+                <rect key="frame" x="0.0" y="0.0" width="760" height="520"/>
+                <autoresizingMask key="autoresizingMask"/>
+                <subviews>
+
+                    <!-- Vertical stack: [HStack Controls] + [ScrollView Logs] -->
+                    <stackView id="VSTACK_ID" orientation="vertical" alignment="leading" distribution="fill" spacing="12" translatesAutoresizingMaskIntoConstraints="NO">
+                        <rect key="frame" x="20" y="20" width="720" height="480"/>
+                        <subviews>
+
+                            <!-- Horizontal controls: input + button + spinner -->
+                            <stackView id="HSTACK_ID" orientation="horizontal" alignment="firstBaseline" distribution="fill" spacing="8" translatesAutoresizingMaskIntoConstraints="NO">
+                                <rect key="frame" x="0.0" y="448" width="720" height="32"/>
+                                <subviews>
+                                    <textField id="INPUT_ID" translatesAutoresizingMaskIntoConstraints="NO" verticalHuggingPriority="750">
+                                        <rect key="frame" x="0.0" y="6" width="600" height="22"/>
+                                        <constraints>
+                                            <constraint firstAttribute="width" relation="greaterThanOrEqual" constant="200" id="INPUT_MIN_W"/>
+                                        </constraints>
+                                        <textFieldCell key="cell" selectable="YES" sendsActionOnEndEditing="YES" placeholderString="Enter text…" id="INPUT_CELL_ID"/>
+                                    </textField>
+
+                                    <button id="BUTTON_ID" translatesAutoresizingMaskIntoConstraints="NO">
+                                        <rect key="frame" x="608" y="0.0" width="80" height="32"/>
+                                        <buttonCell key="cell" type="push" title="Run" bezelStyle="rounded" id="BUTTON_CELL_ID"/>
+                                        <connections>
+                                            <!-- Optional: wire to File's Owner action if you have runAction_: -->
+                                            <action selector="runAction:" target="-2" id="RUN_ACTION_CONN"/>
+                                        </connections>
+                                    </button>
+
+                                    <progressIndicator id="SPINNER_ID" style="spinning" controlSize="small" displayedWhenStopped="NO" indeterminate="YES" bezeled="NO" translatesAutoresizingMaskIntoConstraints="NO">
+                                        <rect key="frame" x="696" y="7" width="16" height="16"/>
+                                        <constraints>
+                                            <constraint firstAttribute="width" constant="16" id="SPINNER_W"/>
+                                            <constraint firstAttribute="height" constant="16" id="SPINNER_H"/>
+                                        </constraints>
+                                    </progressIndicator>
+                                </subviews>
+                            </stackView>
+
+                            <!-- Logs area -->
+                            <scrollView id="SCROLL_ID" borderType="bezel" hasHorizontalScroller="YES" hasVerticalScroller="YES" autohidesScrollers="YES" translatesAutoresizingMaskIntoConstraints="NO">
+                                <rect key="frame" x="0.0" y="0.0" width="720" height="436"/>
+                                <clipView key="contentView" drawsBackground="YES" copiesOnScroll="NO" id="CLIP_ID">
+                                    <rect key="frame" x="1" y="1" width="718" height="434"/>
+                                </clipView>
+                                <documentView key="documentView" id="LOGS_TEXTVIEW_ID" customClass="NSTextView">
+                                    <rect key="frame" x="0.0" y="0.0" width="718" height="434"/>
+                                    <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                    <font key="font" metaFont="system"/>
+                                    <bool key="richText">NO</bool>
+                                    <bool key="importsGraphics">NO</bool>
+                                    <bool key="verticallyResizable">YES</bool>
+                                    <bool key="horizontallyResizable">YES</bool>
+                                    <size key="minSize" width="0.0" height="0.0"/>
+                                    <size key="maxSize" width="10000000" height="10000000"/>
+                                    <string key="string">Logs will appear here…</string>
+                                </documentView>
+                                <scroller key="horizontalScroller" id="HSCROLLER_ID"/>
+                                <scroller key="verticalScroller" id="VSCROLLER_ID"/>
+                            </scrollView>
+
+                        </subviews>
+
+                        <!-- Give logs some minimum height inside the vstack -->
+                        <constraints>
+                            <constraint firstItem="SCROLL_ID" firstAttribute="height" relation="greaterThanOrEqual" constant="200" id="LOGS_MIN_HEIGHT"/>
+                        </constraints>
+                    </stackView>
+
+                </subviews>
+
+                <!-- Pin vstack to content margins -->
+                <constraints>
+                    <constraint firstItem="VSTACK_ID" firstAttribute="top" secondItem="CONTENT_VIEW_ID" secondAttribute="top" constant="20" id="C_TOP"/>
+                    <constraint firstItem="VSTACK_ID" firstAttribute="leading" secondItem="CONTENT_VIEW_ID" secondAttribute="leading" constant="20" id="C_LEAD"/>
+                    <constraint firstAttribute="trailing" secondItem="VSTACK_ID" secondAttribute="trailing" constant="20" id="C_TRAIL"/>
+                    <constraint firstAttribute="bottom" secondItem="VSTACK_ID" secondAttribute="bottom" constant="20" id="C_BOTTOM"/>
+                </constraints>
+            </view>
+        </window>
+    </objects>
+</document>
