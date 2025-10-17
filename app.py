@@ -11,12 +11,11 @@ from Cocoa import (
     NSUserInterfaceLayoutOrientationHorizontal, NSBoxCustom, NSMomentaryPushInButton, NSControlSizeLarge,
     NSBezelStyleShadowlessSquare, NSImageOnly, NSFocusRingTypeNone, NSBezelStyleRounded, NSProgressIndicatorStyleSpinning,
     NSTextLayoutOrientationHorizontal, NSLineBreakByTruncatingMiddle, NSFontWeightMedium,
-    NSSavePanel, NSModalResponseOK, NSAlert
+    NSSavePanel, NSModalResponseOK, NSAlert, NSFontWeightSemibold
 )
 from AppKit import (
-    NSTableView, NSTableColumn, NSImageSymbolConfiguration
+    NSTableView, NSTableColumn, NSImageSymbolConfiguration, NSEdgeInsets
 )
-from Foundation import NSTimer
 import objc
 import os
 import threading
@@ -350,11 +349,19 @@ class ContentVC(NSViewController):
 
         # Extract button
         self.extractButton.setTitle_("Extract")
-        self.extractButton.setBordered_(True)
-        self.extractButton.setBezelStyle_(NSBezelStyleRounded)
-        self.extractButton.setButtonType_(NSMomentaryPushInButton)
-        self.extractButton.setToolTip_("Extract")
-        self.extractButton.setControlSize_(NSControlSizeLarge)
+        self.extractButton.setBordered_(False)
+        self.extractButton.setContentTintColor_(NSColor.whiteColor())
+        self.extractButton.setWantsLayer_(True)
+        self.extractButton.setFont_(NSFont.systemFontOfSize_weight_(NSFont.systemFontSize(), NSFontWeightSemibold))
+        # self.extractButton.setBezelStyle_(NSBezelStyleRounded)
+        # self.extractButton.setButtonType_(NSMomentaryPushInButton)
+        # self.extractButton.setToolTip_("Extract")
+        # self.extractButton.setControlSize_(NSControlSizeLarge)
+        layer = self.extractButton.layer()
+        layer.setBackgroundColor_(NSColor.systemBlueColor().CGColor())
+        layer.setCornerRadius_(8.0)
+        layer.setMasksToBounds_(True)
+
 
         attr = NSMutableAttributedString.alloc().initWithString_("Extract")
         self.extractButton.setAttributedTitle_(attr)
@@ -424,7 +431,8 @@ class ContentVC(NSViewController):
 
             self.extractButton.trailingAnchor().constraintEqualToAnchor_constant_(self.view().trailingAnchor(), -24.0),
             self.extractButton.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
-            self.extractButton.heightAnchor().constraintEqualToConstant_(22.0),
+            self.extractButton.heightAnchor().constraintEqualToConstant_(30.0),
+            self.extractButton.widthAnchor().constraintEqualToConstant_(76.0),
 
             self.statusPill.leadingAnchor().constraintEqualToAnchor_(self.urlContainer.leadingAnchor()),
             self.statusPill.trailingAnchor().constraintEqualToAnchor_(self.extractButton.trailingAnchor()),
