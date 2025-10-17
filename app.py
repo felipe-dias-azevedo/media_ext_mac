@@ -12,8 +12,10 @@ from Cocoa import (
     NSBezelStyleShadowlessSquare, NSImageOnly, NSFocusRingTypeNone, NSBezelStyleRounded, NSProgressIndicatorStyleSpinning,
     NSTextLayoutOrientationHorizontal, NSLineBreakByTruncatingMiddle, NSFontWeightMedium,
     NSSavePanel, NSModalResponseOK, NSAlert, NSFontWeightSemibold, NSNoBorder,
-    NSVisualEffectView, NSVisualEffectMaterialSidebar,
-    NSVisualEffectBlendingModeBehindWindow, NSVisualEffectStateActive,
+    NSVisualEffectView, NSVisualEffectMaterialSidebar, NSToolbarSidebarTrackingSeparatorItemIdentifier,
+    NSVisualEffectBlendingModeBehindWindow, NSVisualEffectStateActive, NSWindowTitleHidden,
+    NSToolbarDisplayModeIconOnly, NSToolbarToggleSidebarItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier,
+    NSToolbarItem, NSWindowTabbingModeDisallowed, NSWindowStyleMaskFullSizeContentView, NSWindowToolbarStyleUnified
 )
 from AppKit import (
     NSTableView, NSTableColumn, NSImageSymbolConfiguration, NSBeep
@@ -175,7 +177,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
     def tableView_viewForTableColumn_row_(self, tableView, tableColumn, row):
         item = self.data[row]
         v = NSTableCellView.alloc().init()
-        if item.isGroup:
+        if item.isGroup: # TODO: disable clickable for group
             label = NSTextField.labelWithString_(item.title)
             label.setFont_(NSFont.boldSystemFontOfSize_(NSFont.systemFontSize()))
             label.setTextColor_(NSColor.secondaryLabelColor())
@@ -233,7 +235,7 @@ class StatusPill(NSView):
 
         self.box.setBoxType_(NSBoxCustom)
         self.box.setCornerRadius_(8.0)
-        self.box.setBorderWidth_(2)
+        self.box.setBorderWidth_(1)
         self.box.setBorderColor_(NSColor.separatorColor())
         self.box.setFillColor_(NSColor.controlBackgroundColor())
         self.addSubview_(self.box)
@@ -420,7 +422,7 @@ class ContentVC(NSViewController):
             self.logContainer.setWantsLayer_(True)
         if self.logContainer.layer() is not None:
             self.logContainer.layer().setCornerRadius_(8.0)
-            self.logContainer.layer().setBorderWidth_(2)
+            self.logContainer.layer().setBorderWidth_(1)
             self.logContainer.layer().setBorderColor_(NSColor.separatorColor().CGColor())
             self.logContainer.layer().setBackgroundColor_(NSColor.controlBackgroundColor().CGColor())
         self.logContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
@@ -439,19 +441,19 @@ class ContentVC(NSViewController):
         # Constraints
         NSLayoutConstraint.activateConstraints_([
             self.urlContainer.leadingAnchor().constraintEqualToAnchor_constant_(self.view().leadingAnchor(), 24.0),
-            self.urlContainer.topAnchor().constraintEqualToAnchor_constant_(self.view().topAnchor(), 16.0),
+            self.urlContainer.topAnchor().constraintEqualToAnchor_constant_(self.view().topAnchor(), 68.0),
             self.urlContainer.trailingAnchor().constraintEqualToAnchor_constant_(self.extractButton.leadingAnchor(), -12.0),
             self.urlContainer.heightAnchor().constraintEqualToConstant_(32.0),
 
             self.urlInlineLabel.leadingAnchor().constraintEqualToAnchor_constant_(self.urlContainer.leadingAnchor(), 10.0),
-            self.urlInlineLabel.centerYAnchor().constraintEqualToAnchor_constant_(self.urlContainer.centerYAnchor(), 1),
+            self.urlInlineLabel.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
 
             self.urlField.leadingAnchor().constraintEqualToAnchor_constant_(self.urlInlineLabel.trailingAnchor(), 10.0),
             self.urlField.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
             self.urlField.trailingAnchor().constraintEqualToAnchor_constant_(self.pasteButton.leadingAnchor(), -8.0),
 
             self.pasteButton.trailingAnchor().constraintEqualToAnchor_constant_(self.urlContainer.trailingAnchor(), -10.0),
-            self.pasteButton.centerYAnchor().constraintEqualToAnchor_constant_(self.urlContainer.centerYAnchor(), 1),
+            self.pasteButton.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
 
             self.extractButton.trailingAnchor().constraintEqualToAnchor_constant_(self.view().trailingAnchor(), -24.0),
             self.extractButton.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
@@ -541,7 +543,7 @@ class ContentVC(NSViewController):
 
     def finishExtract_(self, src_path):
         try:
-            self.statusPill.setKind_message_(StatusPill.KindProgress, "Saving")
+            self.statusPill.setKind_message_(StatusPill.KindProgress, "Saving File")
             self.presentSavePanelForPath_(src_path)
             self.statusPill.setKind_message_(StatusPill.KindSuccess, "Success")
         except Exception as e:
@@ -598,9 +600,8 @@ class RootSplitVC(NSSplitViewController):
         objc.super(RootSplitVC, self).viewDidLoad()
         leftVC = SidebarVC.alloc().init()
         rightVC = ContentVC.alloc().init()
-        left = NSSplitViewItem.splitViewItemWithViewController_(leftVC)
+        left = NSSplitViewItem.sidebarWithViewController_(leftVC)
         right = NSSplitViewItem.splitViewItemWithViewController_(rightVC)
-        left.setCanCollapse_(False)
         self.addSplitViewItem_(left)
         self.addSplitViewItem_(right)
 
@@ -611,12 +612,13 @@ class RootSplitVC(NSSplitViewController):
 
 class AppDelegate(NSObject):
     window = objc.ivar()
+    splitVC = objc.ivar()
 
     def applicationDidFinishLaunching_(self, notification):
         NSApp.setActivationPolicy_(NSApplicationActivationPolicyRegular)
         buildMenus()
 
-        splitVC = RootSplitVC.alloc().init()
+        self.splitVC = RootSplitVC.alloc().init()
         rect = NSMakeRect(0, 0, 720, 480)
         style = (NSWindowStyleMaskTitled |
                  NSWindowStyleMaskClosable |
@@ -627,20 +629,39 @@ class AppDelegate(NSObject):
         )
         self.window.center()
         self.window.setTitle_("Media.Ext")
-        self.window.setContentViewController_(splitVC)
+        self.window.setStyleMask_(self.window.styleMask() | NSWindowStyleMaskFullSizeContentView)
+        self.window.setToolbarStyle_(NSWindowToolbarStyleUnified)
+        self.window.setContentViewController_(self.splitVC)
         self.window.makeKeyAndOrderFront_(None)
+        self.window.setTabbingMode_(NSWindowTabbingModeDisallowed)
         self.window.setContentMinSize_(NSMakeSize(600, 360))
 
-        toolbar = NSToolbar.alloc().initWithIdentifier_("MainToolbar")
+        toolbar = NSToolbar.alloc().initWithIdentifier_("MediaExtToolbar")
+        toolbar.setDelegate_(self)
+        toolbar.setAutosavesConfiguration_(False)
         toolbar.setAllowsUserCustomization_(False)
+        toolbar.setDisplayMode_(NSToolbarDisplayModeIconOnly)
         self.window.setToolbar_(toolbar)
 
         NSApp.activateIgnoringOtherApps_(True)
 
-    def applicationShouldHandleReopen_hasVisibleWindows_(self, app, flag):
-        if not flag and self.window is not None:
-            self.window.makeKeyAndOrderFront_(None)
+    def applicationShouldTerminateAfterLastWindowClosed_(self, app):
         return True
+    
+    def toolbarAllowedItemIdentifiers_(self, toolbar):
+        return [NSToolbarToggleSidebarItemIdentifier, NSToolbarSidebarTrackingSeparatorItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier]
+
+    def toolbarDefaultItemIdentifiers_(self, toolbar):
+        return [NSToolbarToggleSidebarItemIdentifier, NSToolbarSidebarTrackingSeparatorItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier]
+    
+    def toolbar_itemForItemIdentifier_willBeInsertedIntoToolbar_(self, toolbar, identifier, flag):
+        if identifier == NSToolbarToggleSidebarItemIdentifier:
+            item = NSToolbarItem.alloc().initWithItemIdentifier_(identifier)
+            item.setLabel_("Sidebar")
+            item.setPaletteLabel_("Toggle Sidebar")
+            item.setTarget_(self.splitVC)
+            item.setAction_("toggleSidebar:")
+            return item
 
 
 def main():

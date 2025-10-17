@@ -1,5 +1,6 @@
 from Cocoa import (
-    NSApplication, NSApp, NSWindow, NSMenu, NSMenuItem, NSTextView
+    NSApplication, NSApp, NSWindow, NSMenu, NSMenuItem, NSTextView,
+    NSEventModifierFlagCommand, NSEventModifierFlagOption
 )
 import objc
 
@@ -17,20 +18,15 @@ def buildMenus():
     appMenu.addItem_(NSMenuItem.separatorItem())
     appMenu.addItemWithTitle_action_keyEquivalent_("Preferences…", None, ",")
     appMenu.addItem_(NSMenuItem.separatorItem())
+    appMenu.addItemWithTitle_action_keyEquivalent_("Close Window",
+                                                    objc.selector(NSWindow.performClose_, signature=b"v@:@"),
+                                                    "w")
+    appMenu.addItem_(NSMenuItem.separatorItem())
     appMenu.addItemWithTitle_action_keyEquivalent_("Quit MediaExtSwiftUI",
                                                     objc.selector(NSApp.terminate_, signature=b"v@:@"),
                                                     "q")
     appItem.setSubmenu_(appMenu)
     main.addItem_(appItem)
-
-    # File
-    fileItem = NSMenuItem.alloc().init()
-    fileMenu = NSMenu.alloc().initWithTitle_("File")
-    fileMenu.addItemWithTitle_action_keyEquivalent_("Close Window",
-                                                    objc.selector(NSWindow.performClose_, signature=b"v@:@"),
-                                                    "w")
-    fileItem.setSubmenu_(fileMenu)
-    main.addItem_(fileItem)
 
     # Edit
     editItem = NSMenuItem.alloc().init()
@@ -41,6 +37,18 @@ def buildMenus():
     editMenu.addItemWithTitle_action_keyEquivalent_("Select All", objc.selector(NSTextView.selectAll_, signature=b"v@:@"), "a")
     editItem.setSubmenu_(editMenu)
     main.addItem_(editItem)
+
+    # View
+    viewItem = NSMenuItem.alloc().init()
+    viewMenu = NSMenu.alloc().initWithTitle_("View")
+    toggle = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+        "Toggle Sidebar", "toggleSidebar:", "s"
+    )
+    toggle.setKeyEquivalentModifierMask_(NSEventModifierFlagCommand | NSEventModifierFlagOption)
+    toggle.setTarget_(None)
+    viewMenu.addItem_(toggle)
+    viewItem.setSubmenu_(viewMenu)
+    main.addItem_(viewItem)
 
     # Window
     winItem = NSMenuItem.alloc().init()
