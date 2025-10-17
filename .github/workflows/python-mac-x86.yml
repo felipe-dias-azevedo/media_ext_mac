@@ -1,0 +1,56 @@
+# .github/workflows/build-macos.yml
+name: macOS x86_64 App
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+
+    strategy:
+      matrix:
+        python-version: ["3.13"]  # set what you support
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          pip install -r requirements.txt
+
+      # Optional: if you use a .spec file, ensure it’s in repo; otherwise use CLI flags below.
+      - name: Build with PyInstaller
+        run: |
+          source ./build.sh
+
+      # Optional: create a ZIP for easy downloading
+      - name: Package .app as ZIP
+        run: |
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent "MyApp.app" "MyApp-macOS.zip"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyApp-macOS
+          path: |
+            dist/MyApp.app
+            dist/MyApp-macOS.zip
