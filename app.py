@@ -10,16 +10,51 @@ from Cocoa import (
     NSMutableAttributedString, NSMakeSize, NSMakeRect, NSMakeRange,
     NSUserInterfaceLayoutOrientationHorizontal, NSBoxCustom, NSMomentaryPushInButton, NSControlSizeLarge,
     NSBezelStyleShadowlessSquare, NSImageOnly, NSFocusRingTypeNone, NSBezelStyleRounded, NSProgressIndicatorStyleSpinning,
-    NSTextLayoutOrientationHorizontal, NSLineBreakByTruncatingMiddle, NSFontWeightMedium
+    NSTextLayoutOrientationHorizontal, NSLineBreakByTruncatingMiddle, NSFontWeightMedium,
+    NSSavePanel, NSModalResponseOK, NSAlert
 )
 from AppKit import (
     NSTableView, NSTableColumn, NSImageSymbolConfiguration
 )
 from Foundation import NSTimer
 import objc
+import os
+import threading
 
 from menu import buildMenus
 
+def download(url, logger):
+    return "file.mp3" # TODO:
+
+def move_file(src, dst):
+    pass # TODO:
+
+class DownloaderLogger:
+    def __init__(self, handler):
+        self.content = ""
+        self.handler = handler
+
+    def output(self, text):
+        self.content += text + "\n"
+
+        print(text)
+        # handler is expected to schedule UI updates on the main thread
+        self.handler(self.content)
+
+    def debug(self, msg):
+        self.output(f"{msg}")
+
+    def info(self, msg):
+        self.output(f"[INFO] {msg}")
+
+    def warning(self, msg):
+        self.output(f"[WARNING] {msg}")
+
+    def error(self, msg):
+        self.output(f"[ERROR] {msg}")
+
+    def reset(self):
+        self.content = ""
 
 # -----------------------------
 # Models
@@ -154,8 +189,10 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
 # -----------------------------
 
 class StatusPill(NSView):
-    KindSuccess = 0
-    KindProgress = 1
+    KindNone = 0
+    KindSuccess = 1
+    KindProgress = 2
+    KindError = 3
 
     def init(self):
         self = objc.super(StatusPill, self).init()
@@ -205,22 +242,42 @@ class StatusPill(NSView):
             stack.topAnchor().constraintEqualToAnchor_constant_(self.topAnchor(), 8.0),
             stack.bottomAnchor().constraintEqualToAnchor_constant_(self.bottomAnchor(), -8.0),
         ])
-        self.setKind_message_(self.KindSuccess, "Success")
+        self.reset_()
         return self
 
     def setKind_message_(self, kind, msg):
-        if kind == self.KindSuccess:
+        if kind == self.KindNone:
+            self.reset_()    
+        elif kind == self.KindSuccess:
             self.spinner.stopAnimation_(None)
             self.spinner.setHidden_(True)
             self.icon.setHidden_(False)
+            img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("checkmark", None)
+            self.icon.setImage_(img)
+            self.icon.setContentTintColor_(NSColor.systemGreenColor())
             self.label.setStringValue_(msg)
             self.label.setTextColor_(NSColor.systemGreenColor())
+        elif kind == self.KindError:
+            self.spinner.stopAnimation_(None)
+            self.spinner.setHidden_(True)
+            self.icon.setHidden_(False)
+            img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("xmark", None)
+            self.icon.setImage_(img)
+            self.icon.setContentTintColor_(NSColor.systemRedColor())
+            self.label.setStringValue_(msg)
+            self.label.setTextColor_(NSColor.systemRedColor())
         else:
             self.icon.setHidden_(True)
             self.spinner.setHidden_(False)
             self.spinner.startAnimation_(None)
             self.label.setStringValue_(msg)
             self.label.setTextColor_(NSColor.labelColor())
+
+    def reset_(self, sender=None):
+        self.icon.setHidden_(True)
+        self.spinner.setHidden_(True)
+        self.label.setStringValue_("")
+        self.label.setTextColor_(NSColor.labelColor())
 
 
 # -----------------------------
@@ -238,6 +295,7 @@ class ContentVC(NSViewController):
         self.pasteButton = NSButton.alloc().init()
         self.extractButton = NSButton.alloc().init()
         self.statusPill = StatusPill.alloc().init()
+        self.logger = DownloaderLogger(self._enqueue_log)
 
         # self.logScroll = NSScrollView.alloc().init()
         # self.logText = NSTextView.alloc().init()
@@ -317,7 +375,7 @@ class ContentVC(NSViewController):
             self.logText.textContainer().setWidthTracksTextView_(True)
             # We don't know scroll width yet; set 0 here and update later in viewDidLayout
             self.logText.textContainer().setContainerSize_(NSMakeSize(0.0, float("inf")))
-        self.logText.setString_("test")
+        self.logText.setString_("")
 
         self.logScroll.setHasVerticalScroller_(True)
         self.logScroll.setBorderType_(0)
@@ -406,25 +464,96 @@ class ContentVC(NSViewController):
             self.urlField.setStringValue_(s)
         self.statusPill.setKind_message_(StatusPill.KindSuccess, "Success")
 
+    def _enqueue_log(self, text):
+        # Schedule appendLog_: on the main thread (performSelector name ends with ':')
+        self.performSelectorOnMainThread_withObject_waitUntilDone_("appendLog:", text, False)
+
     def appendLog_(self, text):
-        current = self.logText.string() or ""
-        if current:
-            current = current + "\n" + text
-        else:
-            current = text
-        self.logText.setString_(current)
-        self.logText.scrollRangeToVisible_(NSMakeRange(len(current), 0))
-
-
-    def _finishExtract_(self, timer):
-        self.statusPill.setKind_message_(StatusPill.KindSuccess, "Success")
-        self.appendLog_("test 2\ntest 3")
+        self.logText.setString_(text)
+        self.logText.scrollRangeToVisible_(NSMakeRange(len(text), 0))
 
     def extract_(self, sender):
-        self.statusPill.setKind_message_(StatusPill.KindProgress, "Downloading")
-        self.appendLog_("test 1")
-        NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(1.2, self, "_finishExtract:", None, False)
+        text = self.urlField.stringValue().strip()
+        if not text:
+            return
 
+        if not text.lower().startswith("https://"):
+            alert = NSAlert.alloc().init()
+            alert.setMessageText_("Invalid URL")
+            alert.setInformativeText_("Please enter a valid URL.")
+            alert.addButtonWithTitle_("OK")
+            alert.runModal()
+            return
+
+        self.statusPill.setKind_message_(StatusPill.KindProgress, "Downloading")
+        self.logger.reset()
+        self.logger.info("Extract started.")
+        self.setBusy_(True)
+        threading.Thread(target=self._download_thread, args=(text,), daemon=True).start()
+        # NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(1.2, self, "_finishExtract:", None, False)
+
+    def _download_thread(self, url):
+        try:
+            path = download(url, self.logger)
+            self.logger.info(f"Download finished successfully: {path}")
+            
+            self.performSelectorOnMainThread_withObject_waitUntilDone_("finishExtract:", path, True)
+
+        except Exception as e:
+            self.logger.error(f"Download failed: {e}")
+            self.statusPill.setKind_message_(StatusPill.KindError, "Failed")
+        finally:
+            self.performSelectorOnMainThread_withObject_waitUntilDone_("setBusy:", False, False)
+
+    def finishExtract_(self, src_path):
+        try:
+            self.statusPill.setKind_message_(StatusPill.KindProgress, "Saving")
+            self.presentSavePanelForPath_(src_path)
+            self.statusPill.setKind_message_(StatusPill.KindSuccess, "Success")
+        except Exception as e:
+            self.logger.error(f"Save failed: {e}")
+            self.statusPill.setKind_message_(StatusPill.KindError, "Failed")
+        finally:
+            self.setBusy_(False)
+
+    def setBusy_(self, is_busy):
+        self.extractButton.setEnabled_(not is_busy)
+        self.urlField.setEnabled_(not is_busy)
+        self.urlField.setEditable_(not is_busy)
+
+        if not is_busy:
+            self.urlField.setStringValue_("")
+
+    def presentSavePanelForPath_(self, src_path):
+
+        save_path = self.openSavePanel_(src_path)
+        while save_path is None:
+            save_path = self.openSavePanel_(src_path)
+
+        self.logger.info(f"Saving to: {save_path}")
+
+        move_file(src_path, save_path)
+
+        self.logger.info("File saved successfully.")
+
+    def openSavePanel_(self, src_path):
+        try:
+            panel = NSSavePanel.savePanel()
+            panel.setAllowsOtherFileTypes_(False)
+            panel.setAllowedFileTypes_(["mp3"])
+
+            suggested = os.path.basename(src_path)
+            panel.setNameFieldStringValue_(suggested)
+            
+            resp = panel.runModal()
+            
+            if not resp or resp != NSModalResponseOK:
+                return None
+            
+            return panel.URL().path()
+        except Exception as e:
+            self.logger.error(f"Error showing save dialog: {e}")
+            return None
 
 # -----------------------------
 # Split container
