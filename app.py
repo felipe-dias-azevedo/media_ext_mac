@@ -11,7 +11,9 @@ from Cocoa import (
     NSUserInterfaceLayoutOrientationHorizontal, NSBoxCustom, NSMomentaryPushInButton, NSControlSizeLarge,
     NSBezelStyleShadowlessSquare, NSImageOnly, NSFocusRingTypeNone, NSBezelStyleRounded, NSProgressIndicatorStyleSpinning,
     NSTextLayoutOrientationHorizontal, NSLineBreakByTruncatingMiddle, NSFontWeightMedium,
-    NSSavePanel, NSModalResponseOK, NSAlert, NSFontWeightSemibold, NSNoBorder
+    NSSavePanel, NSModalResponseOK, NSAlert, NSFontWeightSemibold, NSNoBorder,
+    NSVisualEffectView, NSVisualEffectMaterialSidebar,
+    NSVisualEffectBlendingModeBehindWindow, NSVisualEffectStateActive,
 )
 from AppKit import (
     NSTableView, NSTableColumn, NSImageSymbolConfiguration, NSBeep
@@ -87,6 +89,8 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
             return None
         self.table = NSTableView.alloc().init()
         self.scroll = NSScrollView.alloc().init()
+        self.visualEffect = NSVisualEffectView.alloc().init()
+        
         self.data = [
             MediaItem.group("Last 7 Days"),
             MediaItem.item("o-astronauta-de-marmore.mp3", "13/10/25, 16:24:20"),
@@ -110,25 +114,49 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         return self
 
     def loadView(self):
-        self.setView_(NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 300, 400)))
-
-        self.scroll.setDocumentView_(self.table)
-        self.scroll.setHasVerticalScroller_(True)
+        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 300, 400))
+        view.setWantsLayer_(True)
+        self.setView_(view)
+        
+        # Add visual effect view first
+        self.visualEffect.setMaterial_(NSVisualEffectMaterialSidebar)
+        self.visualEffect.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
+        self.visualEffect.setState_(NSVisualEffectStateActive)
+        self.visualEffect.setWantsLayer_(True)
+        self.visualEffect.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.view().addSubview_(self.visualEffect)
+        
+        # Make scroll view transparent
+        self.scroll.setDrawsBackground_(False)
+        self.table.setBackgroundColor_(NSColor.clearColor())
+        
+        # Configure table
         self.table.setHeaderView_(None)
         self.table.setRowHeight_(48.0)
         self.table.setIntercellSpacing_(NSMakeSize(0.0, 0.0))
         self.table.setStyle_(NSTableViewStyleInset)
-        self.table.setBackgroundColor_(NSColor.windowBackgroundColor())
 
+        # Add column
         col = NSTableColumn.alloc().initWithIdentifier_("main")
         self.table.addTableColumn_(col)
         self.table.setDelegate_(self)
         self.table.setDataSource_(self)
-
-        self.view().addSubview_(self.scroll)
+        
+        # Configure scroll view
+        self.scroll.setDocumentView_(self.table)
+        self.scroll.setHasVerticalScroller_(True)
         self.scroll.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.view().addSubview_(self.scroll)
 
+        # Update constraints to include visual effect view
         NSLayoutConstraint.activateConstraints_([
+            # Pin visual effect to all edges
+            self.visualEffect.topAnchor().constraintEqualToAnchor_(self.view().topAnchor()),
+            self.visualEffect.leadingAnchor().constraintEqualToAnchor_(self.view().leadingAnchor()),
+            self.visualEffect.trailingAnchor().constraintEqualToAnchor_(self.view().trailingAnchor()),
+            self.visualEffect.bottomAnchor().constraintEqualToAnchor_(self.view().bottomAnchor()),
+            
+            # Existing scroll view constraints
             self.scroll.leadingAnchor().constraintEqualToAnchor_(self.view().leadingAnchor()),
             self.scroll.trailingAnchor().constraintEqualToAnchor_(self.view().trailingAnchor()),
             self.scroll.topAnchor().constraintEqualToAnchor_(self.view().topAnchor()),
