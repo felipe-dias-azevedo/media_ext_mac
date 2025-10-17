@@ -11,10 +11,10 @@ from Cocoa import (
     NSUserInterfaceLayoutOrientationHorizontal, NSBoxCustom, NSMomentaryPushInButton, NSControlSizeLarge,
     NSBezelStyleShadowlessSquare, NSImageOnly, NSFocusRingTypeNone, NSBezelStyleRounded, NSProgressIndicatorStyleSpinning,
     NSTextLayoutOrientationHorizontal, NSLineBreakByTruncatingMiddle, NSFontWeightMedium,
-    NSSavePanel, NSModalResponseOK, NSAlert, NSFontWeightSemibold
+    NSSavePanel, NSModalResponseOK, NSAlert, NSFontWeightSemibold, NSNoBorder
 )
 from AppKit import (
-    NSTableView, NSTableColumn, NSImageSymbolConfiguration, NSEdgeInsets
+    NSTableView, NSTableColumn, NSImageSymbolConfiguration, NSBeep
 )
 import objc
 import os
@@ -205,12 +205,12 @@ class StatusPill(NSView):
 
         self.box.setBoxType_(NSBoxCustom)
         self.box.setCornerRadius_(8.0)
-        self.box.setBorderWidth_(0.5)
+        self.box.setBorderWidth_(2)
         self.box.setBorderColor_(NSColor.separatorColor())
         self.box.setFillColor_(NSColor.controlBackgroundColor())
         self.addSubview_(self.box)
 
-        conf = NSImageSymbolConfiguration.configurationWithPointSize_weight_(14.0, 2)
+        conf = NSImageSymbolConfiguration.configurationWithPointSize_weight_(14.0, NSFontWeightSemibold)
         self.icon.setSymbolConfiguration_(conf)
         img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("checkmark", None)
         self.icon.setContentTintColor_(NSColor.systemGreenColor())
@@ -219,7 +219,7 @@ class StatusPill(NSView):
         self.spinner.setStyle_(NSProgressIndicatorStyleSpinning)  # NSProgressIndicatorStyleSpinning
         self.spinner.setControlSize_(1)  # small
         self.spinner.setDisplayedWhenStopped_(False)
-        self.label.setFont_(NSFont.systemFontOfSize_weight_(13.0, NSFontWeightMedium))
+        self.label.setFont_(NSFont.systemFontOfSize_weight_(14.0, NSFontWeightMedium))
 
         stack = NSStackView.stackViewWithViews_([self.icon, self.spinner, self.label])
         stack.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
@@ -321,13 +321,13 @@ class ContentVC(NSViewController):
             self.view().setWantsLayer_(True)
             self.urlContainer.setWantsLayer_(True)
         if self.urlContainer.layer() is not None:
-            self.urlContainer.layer().setCornerRadius_(8.0)
-            self.urlContainer.layer().setBorderWidth_(0.5)
+            self.urlContainer.layer().setCornerRadius_(6.0)
+            self.urlContainer.layer().setBorderWidth_(1)
             self.urlContainer.layer().setBorderColor_(NSColor.separatorColor().CGColor())
-            self.urlContainer.layer().setBackgroundColor_(NSColor.controlBackgroundColor().CGColor())
+            self.urlContainer.layer().setBackgroundColor_(NSColor.quaternarySystemFillColor().CGColor())
 
         self.urlInlineLabel.setFont_(NSFont.systemFontOfSize_(12.0))
-        self.urlInlineLabel.setTextColor_(NSColor.secondaryLabelColor())
+        self.urlInlineLabel.setTextColor_(NSColor.labelColor())
 
         # URL field
         self.urlField.setBordered_(False)
@@ -353,10 +353,6 @@ class ContentVC(NSViewController):
         self.extractButton.setContentTintColor_(NSColor.whiteColor())
         self.extractButton.setWantsLayer_(True)
         self.extractButton.setFont_(NSFont.systemFontOfSize_weight_(NSFont.systemFontSize(), NSFontWeightSemibold))
-        # self.extractButton.setBezelStyle_(NSBezelStyleRounded)
-        # self.extractButton.setButtonType_(NSMomentaryPushInButton)
-        # self.extractButton.setToolTip_("Extract")
-        # self.extractButton.setControlSize_(NSControlSizeLarge)
         layer = self.extractButton.layer()
         layer.setBackgroundColor_(NSColor.systemBlueColor().CGColor())
         layer.setCornerRadius_(8.0)
@@ -385,7 +381,7 @@ class ContentVC(NSViewController):
         self.logText.setString_("")
 
         self.logScroll.setHasVerticalScroller_(True)
-        self.logScroll.setBorderType_(0)
+        self.logScroll.setBorderType_(NSNoBorder)
         self.logScroll.setDrawsBackground_(False)
 
         # Logs container with rounded border
@@ -396,7 +392,7 @@ class ContentVC(NSViewController):
             self.logContainer.setWantsLayer_(True)
         if self.logContainer.layer() is not None:
             self.logContainer.layer().setCornerRadius_(8.0)
-            self.logContainer.layer().setBorderWidth_(0.5)
+            self.logContainer.layer().setBorderWidth_(2)
             self.logContainer.layer().setBorderColor_(NSColor.separatorColor().CGColor())
             self.logContainer.layer().setBackgroundColor_(NSColor.controlBackgroundColor().CGColor())
         self.logContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
@@ -417,21 +413,21 @@ class ContentVC(NSViewController):
             self.urlContainer.leadingAnchor().constraintEqualToAnchor_constant_(self.view().leadingAnchor(), 24.0),
             self.urlContainer.topAnchor().constraintEqualToAnchor_constant_(self.view().topAnchor(), 16.0),
             self.urlContainer.trailingAnchor().constraintEqualToAnchor_constant_(self.extractButton.leadingAnchor(), -12.0),
-            self.urlContainer.heightAnchor().constraintEqualToConstant_(30.0),
+            self.urlContainer.heightAnchor().constraintEqualToConstant_(32.0),
 
             self.urlInlineLabel.leadingAnchor().constraintEqualToAnchor_constant_(self.urlContainer.leadingAnchor(), 10.0),
-            self.urlInlineLabel.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
+            self.urlInlineLabel.centerYAnchor().constraintEqualToAnchor_constant_(self.urlContainer.centerYAnchor(), 1),
 
             self.urlField.leadingAnchor().constraintEqualToAnchor_constant_(self.urlInlineLabel.trailingAnchor(), 10.0),
             self.urlField.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
             self.urlField.trailingAnchor().constraintEqualToAnchor_constant_(self.pasteButton.leadingAnchor(), -8.0),
 
             self.pasteButton.trailingAnchor().constraintEqualToAnchor_constant_(self.urlContainer.trailingAnchor(), -10.0),
-            self.pasteButton.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
+            self.pasteButton.centerYAnchor().constraintEqualToAnchor_constant_(self.urlContainer.centerYAnchor(), 1),
 
             self.extractButton.trailingAnchor().constraintEqualToAnchor_constant_(self.view().trailingAnchor(), -24.0),
             self.extractButton.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
-            self.extractButton.heightAnchor().constraintEqualToConstant_(30.0),
+            self.extractButton.heightAnchor().constraintEqualToConstant_(32.0),
             self.extractButton.widthAnchor().constraintEqualToConstant_(76.0),
 
             self.statusPill.leadingAnchor().constraintEqualToAnchor_(self.urlContainer.leadingAnchor()),
@@ -468,9 +464,10 @@ class ContentVC(NSViewController):
     def pasteURL_(self, sender):
         pb = NSPasteboard.generalPasteboard()
         s = pb.stringForType_(NSStringPboardType)
-        if s:
-            self.urlField.setStringValue_(s)
-        self.statusPill.setKind_message_(StatusPill.KindSuccess, "Success")
+        if not s:
+            NSBeep()
+            return
+        self.urlField.setStringValue_(s)
 
     def _enqueue_log(self, text):
         # Schedule appendLog_: on the main thread (performSelector name ends with ':')
@@ -483,6 +480,7 @@ class ContentVC(NSViewController):
     def extract_(self, sender):
         text = self.urlField.stringValue().strip()
         if not text:
+            NSBeep()
             return
 
         if not text.lower().startswith("https://"):
