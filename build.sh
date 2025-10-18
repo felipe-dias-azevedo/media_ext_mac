@@ -9,7 +9,7 @@ mkdir -p Resources
 cp "$FFMPEG_BIN" Resources/ffmpeg
 chmod +x Resources/ffmpeg
 
-pyinstaller --name MediaExtractor --windowed \
+pyinstaller --name MediaExt --windowed \
     --add-binary "Resources/ffmpeg:Resources" \
     --hidden-import=yt_dlp \
     --hidden-import=imageio_ffmpeg \
