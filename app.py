@@ -15,14 +15,17 @@ from Cocoa import (
     NSVisualEffectView, NSVisualEffectMaterialSidebar, NSToolbarSidebarTrackingSeparatorItemIdentifier,
     NSVisualEffectBlendingModeBehindWindow, NSVisualEffectStateActive, NSWindowTitleHidden,
     NSToolbarDisplayModeIconOnly, NSToolbarToggleSidebarItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier,
-    NSToolbarItem, NSWindowTabbingModeDisallowed, NSWindowStyleMaskFullSizeContentView, NSWindowToolbarStyleUnified
+    NSToolbarItem, NSWindowTabbingModeDisallowed, NSWindowStyleMaskFullSizeContentView, NSWindowToolbarStyleUnified,
+    NSTableViewAnimationSlideUp, NSTableViewAnimationSlideDown, NSTableViewAnimationEffectFade
 )
 from AppKit import (
     NSTableView, NSTableColumn, NSImageSymbolConfiguration, NSBeep
 )
+from Foundation import NSMutableIndexSet
 import objc
 import os
 import threading
+from collections import deque
 
 from menu import buildMenus
 
@@ -173,11 +176,14 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
     def tableView_isGroupRow_(self, tableView, row):
         return bool(self.data[row].isGroup)
 
+    def tableView_shouldSelectRow_(self, tableView, row):
+        return self.data[row].isGroup == False # TODO: disable clickable for group
+
     # Views per row
     def tableView_viewForTableColumn_row_(self, tableView, tableColumn, row):
         item = self.data[row]
         v = NSTableCellView.alloc().init()
-        if item.isGroup: # TODO: disable clickable for group
+        if item.isGroup:
             label = NSTextField.labelWithString_(item.title)
             label.setFont_(NSFont.boldSystemFontOfSize_(NSFont.systemFontSize()))
             label.setTextColor_(NSColor.secondaryLabelColor())
@@ -211,6 +217,28 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
                 sub.bottomAnchor().constraintEqualToAnchor_constant_(v.bottomAnchor(), -6.0),
             ])
             return v
+        
+    def addRow_(self, obj):
+        if obj is None:
+            return
+        items = [MediaItem.group("Just now"), MediaItem.item(obj["file"], "13/10/25, 16:24:20")] # TODO: SET TIME CORRECTLY
+        self.data[0:0] = items[:2] # TODO: IMPROVE PERFORMANCE
+        # self.data = deque()
+        # self.data.extendleft(reversed(items))
+
+        idxs = NSMutableIndexSet.indexSet()
+        idxs.addIndex_(0)
+        idxs.addIndex_(1)
+
+        # Animate the insertion (update model first!)
+        self.tableView.beginUpdates()
+        self.tableView.insertRowsAtIndexes_withAnimation_(
+            idxs, NSTableViewAnimationSlideUp
+        )
+        self.tableView.endUpdates()
+
+        # Optional: reveal it
+        self.tableView.scrollRowToVisible_(0)
 
 
 # -----------------------------
@@ -318,6 +346,8 @@ class ContentVC(NSViewController):
         self = objc.super(ContentVC, self).init()
         if self is None:
             return None
+        self.sidebarVC = None  # to be set by parent
+
         self.urlContainer = NSView.alloc().init()
         self.urlInlineLabel = NSTextField.labelWithString_("URL")
         self.urlField = NSTextField.alloc().init()
@@ -544,7 +574,11 @@ class ContentVC(NSViewController):
     def finishExtract_(self, src_path):
         try:
             self.statusPill.setKind_message_(StatusPill.KindProgress, "Saving File")
-            self.presentSavePanelForPath_(src_path)
+            file = self.presentSavePanelForPath_(src_path)
+            self.addToSidebar_({
+                "file": os.path.basename(file),
+                "url": self.urlField.stringValue().strip()
+            })
             self.statusPill.setKind_message_(StatusPill.KindSuccess, "Success")
         except Exception as e:
             self.logger.error(f"Save failed: {e}")
@@ -572,6 +606,8 @@ class ContentVC(NSViewController):
 
         self.logger.info("File saved successfully.")
 
+        return save_path
+
     def openSavePanel_(self, src_path):
         try:
             panel = NSSavePanel.savePanel()
@@ -590,6 +626,11 @@ class ContentVC(NSViewController):
         except Exception as e:
             self.logger.error(f"Error showing save dialog: {e}")
             return None
+        
+    def addToSidebar_(self, newMediaItem):
+        self.sidebarVC.performSelectorOnMainThread_withObject_waitUntilDone_(
+            "addRow:", newMediaItem, False
+        )
 
 # -----------------------------
 # Split container
@@ -602,6 +643,7 @@ class RootSplitVC(NSSplitViewController):
         rightVC = ContentVC.alloc().init()
         left = NSSplitViewItem.sidebarWithViewController_(leftVC)
         right = NSSplitViewItem.splitViewItemWithViewController_(rightVC)
+        rightVC.sidebarVC = leftVC # TODO: check if uses leftVC or left (same for right)
         self.addSplitViewItem_(left)
         self.addSplitViewItem_(right)
 
