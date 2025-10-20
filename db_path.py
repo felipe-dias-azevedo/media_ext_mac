@@ -35,7 +35,7 @@ def db_path(filename: str, dev_env: bool) -> Path:
     # 2) Bundle identifier (fallback if missing)
     bundle_id = NSBundle.mainBundle().bundleIdentifier()
     if not bundle_id:
-        bundle_id = "com.example.MyApp"
+        bundle_id = "felipediasazevedo.mediaext"
 
     # 3) App-specific folder under Application Support
     app_dir_url = base_url.URLByAppendingPathComponent_isDirectory_(bundle_id, True)

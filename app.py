@@ -21,7 +21,15 @@ from Cocoa import (
 from AppKit import (
     NSTableView, NSTableColumn, NSImageSymbolConfiguration, NSBeep
 )
-from Foundation import NSMutableIndexSet, NSNotificationCenter
+from UserNotifications import (
+    UNUserNotificationCenter,
+    UNAuthorizationOptionAlert,
+    UNAuthorizationOptionSound,
+    UNAuthorizationOptionBadge,
+    UNNotificationPresentationOptionAlert,
+    UNNotificationPresentationOptionSound,
+)
+from Foundation import NSMutableIndexSet, NSNotificationCenter, NSBundle
 import objc
 import os
 import threading
@@ -30,7 +38,7 @@ from datetime import datetime
 from database import MediaDB, DB_FILENAME
 from models import MediaItem, HistoryFormatter
 from db_path import db_path
-
+from notifications import send_notification
 from menu import buildMenus
 
 
@@ -83,7 +91,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         self.scroll = NSScrollView.alloc().init()
         self.visualEffect = NSVisualEffectView.alloc().init()
 
-        self.db = MediaDB(db_path=db_path(DB_FILENAME, dev_env=True or "--dev" in argv)) # TODO: remove "True or"
+        self.db = MediaDB(db_path=db_path(DB_FILENAME, dev_env="--dev" in argv)) # TODO: remove "True or"
         self.data = []
 
         # center = NSNotificationCenter.defaultCenter()
@@ -206,8 +214,11 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         
         idxs = NSMutableIndexSet.indexSet()
 
-        firstIndex = self.data[0]
-        addGroup = not (firstIndex.isGroup and firstIndex.title == "Just now")
+        if len(self.data) > 0:
+            firstIndex = self.data[0]
+            addGroup = not (firstIndex.isGroup and firstIndex.title == "Just now")
+        else:
+            addGroup = True
 
         items = [MediaItem.item(obj["file"], datetime.now().strftime("%y/%m/%d, %H:%M:%S"))]
         if (addGroup):
@@ -579,6 +590,7 @@ class ContentVC(NSViewController):
                 "file": os.path.basename(file),
                 "url": self.urlField.stringValue().strip()
             })
+            send_notification("Extraction Completed", f"File saved: {os.path.basename(file)}")
             self.statusPill.setKind_message_(StatusPill.KindSuccess, "Success")
         except Exception as e:
             self.logger.error(f"Save failed: {e}")
@@ -648,6 +660,11 @@ class RootSplitVC(NSSplitViewController):
         self.addSplitViewItem_(right)
 
 
+class NotificationDelegate(NSObject):
+    # Show banners/sound even when your app is frontmost
+    def userNotificationCenter_willPresentNotification_withCompletionHandler_(self, center, notification, completionHandler):
+        completionHandler(UNNotificationPresentationOptionAlert | UNNotificationPresentationOptionSound)
+
 # -----------------------------
 # App Delegate
 # -----------------------------
@@ -657,8 +674,18 @@ class AppDelegate(NSObject):
     splitVC = objc.ivar()
 
     def applicationDidFinishLaunching_(self, notification):
+        print("Bundle ID:", NSBundle.mainBundle().bundleIdentifier())
         NSApp.setActivationPolicy_(NSApplicationActivationPolicyRegular)
         buildMenus()
+
+        self.notificationDelegate = NotificationDelegate.alloc().init()
+        center = UNUserNotificationCenter.currentNotificationCenter()
+        center.setDelegate_(self.notificationDelegate)
+        opts = UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge
+        def _auth_done(granted, error):
+            print("Notifications granted:", bool(granted), "error:", error)
+        center.requestAuthorizationWithOptions_completionHandler_(opts, _auth_done)
+
 
         self.splitVC = RootSplitVC.alloc().init()
         rect = NSMakeRect(0, 0, 800, 600)
@@ -707,6 +734,12 @@ class AppDelegate(NSObject):
 
 
 def main():
+    bundle = NSBundle.mainBundle()
+    if bundle and bundle.resourcePath():
+        bundled_ffmpeg = os.path.join(bundle.resourcePath(), "ffmpeg")
+        if os.path.exists(bundled_ffmpeg):
+            os.environ["IMAGEIO_FFMPEG_EXE"] = bundled_ffmpeg
+
     app = NSApplication.sharedApplication()
     delegate = AppDelegate.alloc().init()
     app.setDelegate_(delegate)
