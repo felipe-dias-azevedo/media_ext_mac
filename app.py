@@ -21,13 +21,19 @@ from Cocoa import (
 from AppKit import (
     NSTableView, NSTableColumn, NSImageSymbolConfiguration, NSBeep
 )
-from Foundation import NSMutableIndexSet
+from Foundation import NSMutableIndexSet, NSNotificationCenter
 import objc
 import os
 import threading
+from sys import argv
 from datetime import datetime
+from database import MediaDB, DB_FILENAME
+from models import MediaItem, HistoryFormatter
+from db_path import db_path
 
 from menu import buildMenus
+
+
 
 def download(url, logger):
     return "file.mp3" # TODO:
@@ -62,25 +68,6 @@ class DownloaderLogger:
     def reset(self):
         self.content = ""
 
-# -----------------------------
-# Models
-# -----------------------------
-
-class MediaItem(object):
-    __slots__ = ("title", "timestamp", "isGroup")
-    def __init__(self, title="", timestamp="", isGroup=False):
-        self.title = title
-        self.timestamp = timestamp
-        self.isGroup = isGroup
-
-    @classmethod
-    def group(cls, groupTitle):
-        return cls(title=groupTitle, timestamp="", isGroup=True)
-
-    @classmethod
-    def item(cls, title, timestamp):
-        return cls(title=title, timestamp=timestamp, isGroup=False)
-
 
 # -----------------------------
 # Sidebar VC
@@ -95,27 +82,18 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         self.table = NSTableView.alloc().init()
         self.scroll = NSScrollView.alloc().init()
         self.visualEffect = NSVisualEffectView.alloc().init()
-        
-        self.data = [
-            MediaItem.group("Last 7 Days"),
-            MediaItem.item("o-astronauta-de-marmore.mp3", "13/10/25, 16:24:20"),
-            MediaItem.item("voce-nao-me-ensinou-a-te-esquecer.mp3", "13/10/25, 16:24:20"),
-            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
-            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
-            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
-            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
-            MediaItem.group("Last Month"),
-            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
-            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
-            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
-            MediaItem.item("test.mp3", "13/10/25, 16:24:36"),
-            MediaItem.group("Last Year"),
-            MediaItem.item("test.mp3", "13/10/25, 16:25:21"),
-            MediaItem.item("test.mp3", "13/10/25, 16:25:21"),
-            MediaItem.item("test.mp3", "13/10/25, 16:25:21"),
-            MediaItem.item("test.mp3", "13/10/25, 16:25:21"),
-            MediaItem.item("test.mp3", "13/10/25, 16:25:21"),
-        ]
+
+        self.db = MediaDB(db_path=db_path(DB_FILENAME, dev_env=True or "--dev" in argv)) # TODO: remove "True or"
+        self.data = []
+
+        # center = NSNotificationCenter.defaultCenter()
+        # center.addObserver_selector_name_object_(
+        #     self, 
+        #     objc.selector(self._appWillTerminate_, signature=b"v@:@"),
+        #     NSApplication.willTerminateNotification, 
+        #     None
+        # )
+
         return self
 
     def loadView(self):
@@ -167,6 +145,10 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
             self.scroll.topAnchor().constraintEqualToAnchor_(self.view().topAnchor()),
             self.scroll.bottomAnchor().constraintEqualToAnchor_(self.view().bottomAnchor()),
         ])
+
+    def viewDidLoad(self):
+        objc.super(SidebarVC, self).viewDidLoad()
+        self.getHistoryData_(None)
 
     # Data source
     def numberOfRowsInTableView_(self, tableView):
@@ -247,6 +229,18 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         self.table.endUpdates()
 
         self.table.scrollRowToVisible_(0)
+
+        self.performSelectorOnMainThread_withObject_waitUntilDone_("addHistoryData:", obj, False)
+
+    def getHistoryData_(self, sender=None):
+        self.data = HistoryFormatter().format(self.db.select_history())
+        self.table.reloadData()
+
+    def addHistoryData_(self, obj):
+        self.db.insert_history(obj["file"], obj["url"])
+
+    def _appWillTerminate_(self, note):
+        self.db.close()
 
 
 # -----------------------------
@@ -538,7 +532,6 @@ class ContentVC(NSViewController):
         self.urlField.setStringValue_(s)
 
     def _enqueue_log(self, text):
-        # Schedule appendLog_: on the main thread (performSelector name ends with ':')
         self.performSelectorOnMainThread_withObject_waitUntilDone_("appendLog:", text, False)
 
     def appendLog_(self, text):
@@ -551,7 +544,7 @@ class ContentVC(NSViewController):
             NSBeep()
             return
 
-        if not text.lower().startswith("https://"):
+        if not text.lower().startswith("https://"): # TODO: add proper validation
             alert = NSAlert.alloc().init()
             alert.setMessageText_("Invalid URL")
             alert.setInformativeText_("Please enter a valid URL.")
@@ -564,7 +557,6 @@ class ContentVC(NSViewController):
         self.logger.info("Extract started.")
         self.setBusy_(True)
         threading.Thread(target=self._download_thread, args=(text,), daemon=True).start()
-        # NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(1.2, self, "_finishExtract:", None, False)
 
     def _download_thread(self, url):
         try:
