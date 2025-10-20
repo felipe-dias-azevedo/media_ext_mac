@@ -25,7 +25,7 @@ from Foundation import NSMutableIndexSet
 import objc
 import os
 import threading
-from collections import deque
+from datetime import datetime
 
 from menu import buildMenus
 
@@ -119,7 +119,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         return self
 
     def loadView(self):
-        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 300, 400))
+        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 250, 350))
         view.setWantsLayer_(True)
         self.setView_(view)
         
@@ -177,7 +177,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         return bool(self.data[row].isGroup)
 
     def tableView_shouldSelectRow_(self, tableView, row):
-        return self.data[row].isGroup == False # TODO: disable clickable for group
+        return self.data[row].isGroup == False
 
     # Views per row
     def tableView_viewForTableColumn_row_(self, tableView, tableColumn, row):
@@ -221,24 +221,32 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
     def addRow_(self, obj):
         if obj is None:
             return
-        items = [MediaItem.group("Just now"), MediaItem.item(obj["file"], "13/10/25, 16:24:20")] # TODO: SET TIME CORRECTLY
-        self.data[0:0] = items[:2] # TODO: IMPROVE PERFORMANCE
-        # self.data = deque()
-        # self.data.extendleft(reversed(items))
-
+        
         idxs = NSMutableIndexSet.indexSet()
-        idxs.addIndex_(0)
-        idxs.addIndex_(1)
 
-        # Animate the insertion (update model first!)
-        self.tableView.beginUpdates()
-        self.tableView.insertRowsAtIndexes_withAnimation_(
-            idxs, NSTableViewAnimationSlideUp
+        firstIndex = self.data[0]
+        addGroup = not (firstIndex.isGroup and firstIndex.title == "Just now")
+
+        items = [MediaItem.item(obj["file"], datetime.now().strftime("%y/%m/%d, %H:%M:%S"))]
+        if (addGroup):
+            items.insert(0, MediaItem.group("Just now"))
+
+            self.data[0:0] = items[:2]
+
+            idxs.addIndex_(0)
+            idxs.addIndex_(1)
+        else:
+            self.data[1:1] = items
+
+            idxs.addIndex_(1)
+
+        self.table.beginUpdates()
+        self.table.insertRowsAtIndexes_withAnimation_(
+            idxs, (NSTableViewAnimationSlideDown | NSTableViewAnimationEffectFade)
         )
-        self.tableView.endUpdates()
+        self.table.endUpdates()
 
-        # Optional: reveal it
-        self.tableView.scrollRowToVisible_(0)
+        self.table.scrollRowToVisible_(0)
 
 
 # -----------------------------
@@ -629,7 +637,7 @@ class ContentVC(NSViewController):
         
     def addToSidebar_(self, newMediaItem):
         self.sidebarVC.performSelectorOnMainThread_withObject_waitUntilDone_(
-            "addRow:", newMediaItem, False
+            "addRow:", newMediaItem, True
         )
 
 # -----------------------------
@@ -641,9 +649,9 @@ class RootSplitVC(NSSplitViewController):
         objc.super(RootSplitVC, self).viewDidLoad()
         leftVC = SidebarVC.alloc().init()
         rightVC = ContentVC.alloc().init()
+        rightVC.sidebarVC = leftVC
         left = NSSplitViewItem.sidebarWithViewController_(leftVC)
         right = NSSplitViewItem.splitViewItemWithViewController_(rightVC)
-        rightVC.sidebarVC = leftVC # TODO: check if uses leftVC or left (same for right)
         self.addSplitViewItem_(left)
         self.addSplitViewItem_(right)
 
@@ -661,7 +669,7 @@ class AppDelegate(NSObject):
         buildMenus()
 
         self.splitVC = RootSplitVC.alloc().init()
-        rect = NSMakeRect(0, 0, 720, 480)
+        rect = NSMakeRect(0, 0, 800, 600)
         style = (NSWindowStyleMaskTitled |
                  NSWindowStyleMaskClosable |
                  NSWindowStyleMaskMiniaturizable |
