@@ -16,7 +16,7 @@ def buildMenus():
     about.setTarget_(NSApp)
     appMenu.addItem_(about)
     appMenu.addItem_(NSMenuItem.separatorItem())
-    appMenu.addItemWithTitle_action_keyEquivalent_("Preferences…", None, ",")
+    appMenu.addItemWithTitle_action_keyEquivalent_("Preferences…", "showPreferences:", ",")
     appMenu.addItem_(NSMenuItem.separatorItem())
     appMenu.addItemWithTitle_action_keyEquivalent_("Close Window",
                                                     objc.selector(NSWindow.performClose_, signature=b"v@:@"),

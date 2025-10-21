@@ -40,7 +40,7 @@ from models import MediaItem, HistoryFormatter
 from db_path import db_path
 from notifications import send_notification
 from menu import buildMenus
-
+from settings import SettingsWindowController
 
 
 def download(url, logger):
@@ -716,6 +716,9 @@ class AppDelegate(NSObject):
 
     def applicationShouldTerminateAfterLastWindowClosed_(self, app):
         return True
+    
+    def showPreferences_(self, sender):
+        SettingsWindowController.sharedController().showWindow_(sender)
     
     def toolbarAllowedItemIdentifiers_(self, toolbar):
         return [NSToolbarToggleSidebarItemIdentifier, NSToolbarSidebarTrackingSeparatorItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier]
