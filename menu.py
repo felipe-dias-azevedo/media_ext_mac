@@ -10,7 +10,7 @@ def buildMenus():
     # App
     appItem = NSMenuItem.alloc().init()
     appMenu = NSMenu.alloc().init()
-    about = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("About MediaExtSwiftUI",
+    about = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("About MediaExt",
                                                                     objc.selector(NSApp.orderFrontStandardAboutPanel_, signature=b"v@:@"),
                                                                     "")
     about.setTarget_(NSApp)
@@ -22,7 +22,7 @@ def buildMenus():
                                                     objc.selector(NSWindow.performClose_, signature=b"v@:@"),
                                                     "w")
     appMenu.addItem_(NSMenuItem.separatorItem())
-    appMenu.addItemWithTitle_action_keyEquivalent_("Quit MediaExtSwiftUI",
+    appMenu.addItemWithTitle_action_keyEquivalent_("Quit MediaExt",
                                                     objc.selector(NSApp.terminate_, signature=b"v@:@"),
                                                     "q")
     appItem.setSubmenu_(appMenu)
@@ -64,7 +64,7 @@ def buildMenus():
     # Help
     helpItem = NSMenuItem.alloc().init()
     helpMenu = NSMenu.alloc().initWithTitle_("Help")
-    helpMenu.addItemWithTitle_action_keyEquivalent_("MediaExtSwiftUI Help", None, "?")
+    helpMenu.addItemWithTitle_action_keyEquivalent_("MediaExt Help", None, "?")
     helpItem.setSubmenu_(helpMenu)
     main.addItem_(helpItem)
 

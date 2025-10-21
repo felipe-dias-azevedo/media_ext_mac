@@ -674,7 +674,6 @@ class AppDelegate(NSObject):
     splitVC = objc.ivar()
 
     def applicationDidFinishLaunching_(self, notification):
-        print("Bundle ID:", NSBundle.mainBundle().bundleIdentifier())
         NSApp.setActivationPolicy_(NSApplicationActivationPolicyRegular)
         buildMenus()
 
