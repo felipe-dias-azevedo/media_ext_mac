@@ -12,15 +12,16 @@ from Cocoa import (
 import objc
 from sys import argv
 from db_path import db_path
+from user_defaults import UserDefaults, NORMALIZATION_KEY, NORMALIZATION_OPTIONS
 
-NORMALIZATION_KEY = "NormalizationFrequency"    # persisted in UserDefaults
-OPTIONS = ["Low", "Medium", "High"]
 
 class SettingsContent(NSView):
     def init(self):
         self = objc.super(SettingsContent, self).initWithFrame_(NSMakeRect(0, 0, 520, 240))
         if self is None: 
             return None
+        
+        self.userDefaults = UserDefaults()
 
         # --- Header labels ---
         bundle = NSBundle.mainBundle().bundleIdentifier()
@@ -36,14 +37,14 @@ class SettingsContent(NSView):
         self.label = NSTextField.labelWithString_("Normalization frequency:")
 
         self.popup = NSPopUpButton.alloc().initWithFrame_pullsDown_(NSMakeRect(0,0,0,0), False)
-        self.popup.addItemsWithTitles_(OPTIONS)
-        self.popup.setTarget_(self); self.popup.setAction_("normalizationChanged:")
+        self.popup.addItemsWithTitles_([i.value for i in NORMALIZATION_OPTIONS])
+        self.popup.setTarget_(self)
+        self.popup.setAction_("normalizationChanged:")
 
-        # Load saved value or default to "Medium"
-        defaults = NSUserDefaults.standardUserDefaults()
-        saved = defaults.stringForKey_(NORMALIZATION_KEY) or "Medium"
-        if saved in OPTIONS:
-            self.popup.selectItemWithTitle_(saved)
+        # UserDefaults
+        normalization = self.userDefaults.getNormalization()
+        if normalization in NORMALIZATION_OPTIONS:
+            self.popup.selectItemWithTitle_(normalization.value)
 
         # --- Stack views ---
         # Horizontal row for label + popup (like a SwiftUI HStack)

@@ -16,7 +16,8 @@ from Cocoa import (
     NSVisualEffectBlendingModeBehindWindow, NSVisualEffectStateActive, NSWindowTitleHidden,
     NSToolbarDisplayModeIconOnly, NSToolbarToggleSidebarItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier,
     NSToolbarItem, NSWindowTabbingModeDisallowed, NSWindowStyleMaskFullSizeContentView, NSWindowToolbarStyleUnified,
-    NSTableViewAnimationSlideUp, NSTableViewAnimationSlideDown, NSTableViewAnimationEffectFade
+    NSTableViewAnimationSlideUp, NSTableViewAnimationSlideDown, NSTableViewAnimationEffectFade,
+    NSUserDefaults
 )
 from AppKit import (
     NSTableView, NSTableColumn, NSImageSymbolConfiguration, NSBeep
@@ -36,18 +37,14 @@ import threading
 from sys import argv
 from datetime import datetime
 from database import MediaDB, DB_FILENAME
+from downloader import Downloader
+from user_defaults import UserDefaults
 from models import MediaItem, HistoryFormatter
 from db_path import db_path
 from notifications import send_notification
 from menu import buildMenus
 from settings import SettingsWindowController
 
-
-def download(url, logger):
-    return "file.mp3" # TODO:
-
-def move_file(src, dst):
-    pass # TODO:
 
 class DownloaderLogger:
     def __init__(self, handler):
@@ -91,7 +88,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         self.scroll = NSScrollView.alloc().init()
         self.visualEffect = NSVisualEffectView.alloc().init()
 
-        self.db = MediaDB(db_path=db_path(DB_FILENAME, dev_env="--dev" in argv)) # TODO: remove "True or"
+        self.db = MediaDB(db_path=db_path(DB_FILENAME, dev_env="--dev" in argv))
         self.data = []
 
         # center = NSNotificationCenter.defaultCenter()
@@ -367,11 +364,11 @@ class ContentVC(NSViewController):
         self.pasteButton = NSButton.alloc().init()
         self.extractButton = NSButton.alloc().init()
         self.statusPill = StatusPill.alloc().init()
-        self.logger = DownloaderLogger(self._enqueue_log)
 
-        # self.logScroll = NSScrollView.alloc().init()
-        # self.logText = NSTextView.alloc().init()
-        # self.logScroll.setDocumentView_(self.logText)
+        self.logger = DownloaderLogger(self._enqueue_log)
+        self.userDefaults = UserDefaults()
+        self.downloader = Downloader(self.logger)
+
         self.logScroll = NSTextView.scrollablePlainDocumentContentTextView()
         self.logScroll.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.logText = self.logScroll.documentView()  # type: NSTextView
@@ -571,7 +568,10 @@ class ContentVC(NSViewController):
 
     def _download_thread(self, url):
         try:
-            path = download(url, self.logger)
+            normalization = self.userDefaults.getNormalization()
+            self.logger.info(f"Using normalization: {normalization}")
+
+            path = self.downloader.download(url, normalization=normalization)
             self.logger.info(f"Download finished successfully: {path}")
             
             self.performSelectorOnMainThread_withObject_waitUntilDone_("finishExtract:", path, True)
@@ -614,7 +614,7 @@ class ContentVC(NSViewController):
 
         self.logger.info(f"Saving to: {save_path}")
 
-        move_file(src_path, save_path)
+        self.downloader.move_file(src_path, save_path)
 
         self.logger.info("File saved successfully.")
 
