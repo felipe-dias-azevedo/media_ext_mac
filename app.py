@@ -687,7 +687,7 @@ class AppDelegate(NSObject):
 
 
         self.splitVC = RootSplitVC.alloc().init()
-        rect = NSMakeRect(0, 0, 800, 600)
+        rect = NSMakeRect(0, 0, 840, 620)
         style = (NSWindowStyleMaskTitled |
                  NSWindowStyleMaskClosable |
                  NSWindowStyleMaskMiniaturizable |
@@ -695,11 +695,12 @@ class AppDelegate(NSObject):
         self.window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             rect, style, NSBackingStoreBuffered, False
         )
-        self.window.center()
         self.window.setTitle_("Media.Ext")
         self.window.setStyleMask_(self.window.styleMask() | NSWindowStyleMaskFullSizeContentView)
         self.window.setToolbarStyle_(NSWindowToolbarStyleUnified)
         self.window.setContentViewController_(self.splitVC)
+        self.window.setContentSize_(NSMakeSize(840, 620))
+        self.window.center()
         self.window.makeKeyAndOrderFront_(None)
         self.window.setTabbingMode_(NSWindowTabbingModeDisallowed)
         self.window.setContentMinSize_(NSMakeSize(600, 360))
