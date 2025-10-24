@@ -22,6 +22,7 @@ from Cocoa import (
 from AppKit import (
     NSTableView, NSTableColumn, NSImageSymbolConfiguration, NSBeep
 )
+import Quartz
 from UserNotifications import (
     UNUserNotificationCenter,
     UNAuthorizationOptionAlert,
@@ -54,8 +55,9 @@ class DownloaderLogger:
     def output(self, text):
         self.content += text + "\n"
 
-        print(text)
-        # handler is expected to schedule UI updates on the main thread
+        if "--dev" in argv:
+            print(text)
+
         self.handler(self.content)
 
     def debug(self, msg):
