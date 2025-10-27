@@ -1,4 +1,4 @@
-# media_ext_py
+# Media.Ext (Mac)
 
 ### Install dependencies
 
@@ -9,19 +9,11 @@ pip install -r requirements.txt
 ### Run (dev)
 
 ```sh
-python main.py
+python app.py
 ```
 
 ### Build .app
 
 ```sh
-cp .venv/lib/python3.13/site-packages/imageio_ffmpeg/binaries/ffmpeg* Resources/ffmpeg
-```
-
-```sh
-pyinstaller --name MediaExtractor --windowed \
-    --add-binary "Resources/ffmpeg:Resources" \
-    --hidden-import=yt_dlp \
-    --hidden-import=imageio_ffmpeg \
-    main.py
+source ./build.sh
 ```

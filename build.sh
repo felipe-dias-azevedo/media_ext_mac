@@ -9,8 +9,11 @@ mkdir -p Resources
 cp "$FFMPEG_BIN" Resources/ffmpeg
 chmod +x Resources/ffmpeg
 
-pyinstaller --name MediaExt --windowed \
+pyinstaller --name MediaExt \
+    --windowed \
+    --icon icon.icns \
     --add-binary "Resources/ffmpeg:Resources" \
     --hidden-import=yt_dlp \
     --hidden-import=imageio_ffmpeg \
-    main.py
+    --osx-bundle-identifier felipediasazevedo.mediaext \
+    app.py
