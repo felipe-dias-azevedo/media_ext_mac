@@ -365,6 +365,7 @@ class ContentVC(NSViewController):
         self.urlField = NSTextField.alloc().init()
         self.pasteButton = NSButton.alloc().init()
         self.extractButton = NSButton.alloc().init()
+        # TODO: add a cancel button to stop the download thread
         self.statusPill = StatusPill.alloc().init()
 
         self.logger = DownloaderLogger(self._enqueue_log)
