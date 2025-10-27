@@ -2,17 +2,15 @@ from Cocoa import (
     NSApp, NSWindow,
     NSView, NSTextField, 
     NSWindowStyleMaskTitled, NSWindowStyleMaskClosable,
-    NSWindowStyleMaskMiniaturizable, NSWindowStyleMaskResizable, NSBackingStoreBuffered, NSMakeRect,
-    NSPopUpButton, NSUserDefaults, NSWindowController, NSLayoutConstraint,
-    NSStackView, NSBox, NSLineBorder, NSBoxSeparator,
-    NSFont, NSColor, NSLayoutAttributeFirstBaseline, NSLayoutAttributeLeading,
+    NSBackingStoreBuffered, NSMakeRect,
+    NSPopUpButton, NSWindowController, NSLayoutConstraint,
+    NSStackView,
+    NSLayoutAttributeFirstBaseline, NSLayoutAttributeLeading,
     NSUserInterfaceLayoutOrientationHorizontal, NSUserInterfaceLayoutOrientationVertical,
-    NSLayoutConstraintOrientationHorizontal, NSBundle
+    NSLayoutConstraintOrientationHorizontal
 )
 import objc
-from sys import argv
-from db_path import db_path
-from user_defaults import UserDefaults, NORMALIZATION_KEY, NORMALIZATION_OPTIONS
+from user_defaults import UserDefaults, NORMALIZATION_OPTIONS
 
 
 class SettingsContent(NSView):
@@ -22,16 +20,6 @@ class SettingsContent(NSView):
             return None
         
         self.userDefaults = UserDefaults()
-
-        # --- Header labels ---
-        bundle = NSBundle.mainBundle().bundleIdentifier()
-        self.titleLabel = NSTextField.labelWithString_(f"Bundle: {bundle}")
-        path = db_path("media.db", dev_env="--dev" in argv)
-        self.subtitleLabel = NSTextField.labelWithString_(f"DB Path: {path}")
-
-        # --- Separator ---
-        self.separator = NSBox.alloc().initWithFrame_(NSMakeRect(0,0,0,1))
-        self.separator.setBoxType_(NSBoxSeparator)  # modern hairline separator
 
         # --- Form row: label + popup ---
         self.label = NSTextField.labelWithString_("Normalization frequency:")
@@ -43,8 +31,7 @@ class SettingsContent(NSView):
 
         # UserDefaults
         normalization = self.userDefaults.getNormalization()
-        if normalization in NORMALIZATION_OPTIONS:
-            self.popup.selectItemWithTitle_(normalization.value)
+        self.popup.selectItemWithTitle_(normalization)
 
         # --- Stack views ---
         # Horizontal row for label + popup (like a SwiftUI HStack)
@@ -64,20 +51,15 @@ class SettingsContent(NSView):
         self.vstack.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
         # Add arranged subviews in order:
-        self.vstack.addArrangedSubview_(self.titleLabel)
-        self.vstack.addArrangedSubview_(self.subtitleLabel)
 
         # Add a bit more space before the separator
-        self.vstack.setCustomSpacing_afterView_(12.0, self.subtitleLabel)
-        self.vstack.addArrangedSubview_(self.separator)
-        self.vstack.setCustomSpacing_afterView_(16.0, self.separator)
 
         self.vstack.addArrangedSubview_(self.formRow)
 
         # Add to view + constraints
         self.addSubview_(self.vstack)
         # Make subviews use Auto Layout
-        for v in (self.titleLabel, self.subtitleLabel, self.separator, self.label, self.popup):
+        for v in (self.label, self.popup):
             v.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
         NSLayoutConstraint.activateConstraints_([
@@ -89,10 +71,6 @@ class SettingsContent(NSView):
 
             # Give the popup a sensible min width
             self.popup.widthAnchor().constraintGreaterThanOrEqualToConstant_(140.0),
-
-            # Make the separator expand horizontally
-            self.separator.widthAnchor().constraintEqualToAnchor_(self.vstack.widthAnchor()),
-            self.separator.heightAnchor().constraintEqualToConstant_(1.0),
         ])
 
         # Hugging/compression so the popup doesn't squish the label
@@ -105,8 +83,7 @@ class SettingsContent(NSView):
     # Action: save to defaults
     def normalizationChanged_(self, sender):
         title = sender.titleOfSelectedItem()
-        NSUserDefaults.standardUserDefaults().setObject_forKey_(title, NORMALIZATION_KEY)
-        NSUserDefaults.standardUserDefaults().synchronize()
+        self.userDefaults.setNormalization(title)
 
 class SettingsWindowController(NSWindowController):
     shared = None

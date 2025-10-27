@@ -18,3 +18,7 @@ class UserDefaults():
     def getNormalization(self) -> str:
         defaults = NSUserDefaults.standardUserDefaults()
         return defaults.stringForKey_(NORMALIZATION_KEY) or self._getDefaultNormalization().value
+    
+    def setNormalization(self, normalization: str):
+        defaults = NSUserDefaults.standardUserDefaults()
+        defaults.setObject_forKey_(normalization, NORMALIZATION_KEY)
