@@ -1,3 +1,4 @@
+mkdir media_ext_icon.iconset
 cp icon_1024.png media_ext_icon.iconset/icon_512x512@2x.png
 
 sips -z 512 512   icon_1024.png --out media_ext_icon.iconset/icon_512x512.png
