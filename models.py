@@ -43,7 +43,9 @@ class HistoryFormatter:
             age = max(0, self._now - ts)  # guard against clock skew
             for label, (lo, hi) in self._GROUPS:
                 if lo <= age < hi:
-                    buckets[label].append(MediaItem.item(r["file"], datetime.fromtimestamp(ts).strftime("%y/%m/%d, %H:%M:%S")))
+                    buckets[label].append(
+                        MediaItem.item(r["file"], 
+                        datetime.fromtimestamp(ts).strftime("%d/%m/%y, %H:%M:%S"))) # TODO: show user local time format
                     break
 
         out: List[MediaItem] = []

@@ -31,7 +31,9 @@ from UserNotifications import (
     UNNotificationPresentationOptionAlert,
     UNNotificationPresentationOptionSound,
 )
-from Foundation import NSMutableIndexSet, NSNotificationCenter, NSBundle
+from Foundation import (
+    NSMutableIndexSet, NSNotificationCenter, NSBundle
+)
 import objc
 import os
 import threading
@@ -187,6 +189,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
             title = NSTextField.labelWithString_(item.title)
             title.setFont_(NSFont.systemFontOfSize_(12.0))
             title.setLineBreakMode_(NSLineBreakByTruncatingMiddle)  # byTruncatingMiddle
+            # TODO: add tooltip to title label
 
             sub = NSTextField.labelWithString_(item.timestamp)
             sub.setFont_(NSFont.systemFontOfSize_(10.0))
@@ -347,7 +350,6 @@ class StatusPill(NSView):
         self.spinner.setHidden_(True)
         self.label.setStringValue_("")
         self.label.setTextColor_(NSColor.labelColor())
-
 
 # -----------------------------
 # Content VC (right side)
@@ -576,6 +578,7 @@ class ContentVC(NSViewController):
 
             path = self.downloader.download(url, normalization=normalization)
             self.logger.info(f"Download finished successfully: {path}")
+            send_notification("Download Completed", os.path.basename(path))
             
             self.performSelectorOnMainThread_withObject_waitUntilDone_("finishExtract:", path, True)
 
@@ -593,7 +596,6 @@ class ContentVC(NSViewController):
                 "file": os.path.basename(file),
                 "url": self.urlField.stringValue().strip()
             })
-            send_notification("Extraction Completed", f"File saved: {os.path.basename(file)}")
             self.statusPill.setKind_message_(StatusPill.KindSuccess, "Success")
         except Exception as e:
             self.logger.error(f"Save failed: {e}")
@@ -603,6 +605,7 @@ class ContentVC(NSViewController):
 
     def setBusy_(self, is_busy):
         self.extractButton.setEnabled_(not is_busy)
+        self.pasteButton.setEnabled_(not is_busy)
         self.urlField.setEnabled_(not is_busy)
         self.urlField.setEditable_(not is_busy)
 
