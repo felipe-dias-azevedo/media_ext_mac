@@ -22,7 +22,6 @@ from Cocoa import (
 from AppKit import (
     NSTableView, NSTableColumn, NSImageSymbolConfiguration, NSBeep
 )
-import Quartz
 from UserNotifications import (
     UNUserNotificationCenter,
     UNAuthorizationOptionAlert,
@@ -356,24 +355,31 @@ class StatusPill(NSView):
 # -----------------------------
 
 class ContentVC(NSViewController):
+
     def init(self):
         self = objc.super(ContentVC, self).init()
         if self is None:
             return None
         self.sidebarVC = None  # to be set by parent
 
-        self.urlContainer = NSView.alloc().init()
+        # Containers (NSBox so colors auto-adapt to appearance)
+        self.urlContainer = NSBox.alloc().init()
+        self.logContainer = NSBox.alloc().init()
+        self.extractButtonBox = NSBox.alloc().init()
+
+        # UI elements
         self.urlInlineLabel = NSTextField.labelWithString_("URL")
         self.urlField = NSTextField.alloc().init()
         self.pasteButton = NSButton.alloc().init()
         self.extractButton = NSButton.alloc().init()
-        # TODO: add a cancel button to stop the download thread
         self.statusPill = StatusPill.alloc().init()
 
+        # Logger / worker
         self.logger = DownloaderLogger(self._enqueue_log)
         self.userDefaults = UserDefaults()
         self.downloader = Downloader(self.logger)
 
+        # Log text view inside a scroll view
         self.logScroll = NSTextView.scrollablePlainDocumentContentTextView()
         self.logScroll.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.logText = self.logScroll.documentView()  # type: NSTextView
@@ -387,59 +393,76 @@ class ContentVC(NSViewController):
             self.view().window().setDefaultButtonCell_(self.extractButton.cell())
 
     def loadView(self):
-        self.setView_(NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 600, 400)))
+        root = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 600, 400))
+        self.setView_(root)
 
-        # URL container look
-        self.urlContainer.setWantsLayer_(True)
-        if self.urlContainer.layer() is None:
-            # force layer creation on some older builds
-            self.view().setWantsLayer_(True)
-            self.urlContainer.setWantsLayer_(True)
-        if self.urlContainer.layer() is not None:
-            self.urlContainer.layer().setCornerRadius_(6.0)
-            self.urlContainer.layer().setBorderWidth_(1)
-            self.urlContainer.layer().setBorderColor_(NSColor.separatorColor().CGColor())
-            self.urlContainer.layer().setBackgroundColor_(NSColor.quaternarySystemFillColor().CGColor())
+        # ---- URL container (NSBox) — dynamic colors, rounded, border
+        self.urlContainer.setBoxType_(NSBoxCustom)
+        self.urlContainer.setCornerRadius_(6.0)
+        self.urlContainer.setBorderWidth_(1.0)
+        self.urlContainer.setBorderColor_(NSColor.separatorColor())
+        self.urlContainer.setFillColor_(NSColor.quaternarySystemFillColor())
+        self.urlContainer.setContentViewMargins_(NSMakeSize(0.0, 0.0))
+        self.urlContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
+        # URL label
         self.urlInlineLabel.setFont_(NSFont.systemFontOfSize_(12.0))
         self.urlInlineLabel.setTextColor_(NSColor.labelColor())
 
         # URL field
         self.urlField.setBordered_(False)
         self.urlField.setDrawsBackground_(False)
-        self.urlField.setFocusRingType_(NSFocusRingTypeNone)  # none
+        self.urlField.setFocusRingType_(NSFocusRingTypeNone)
         self.urlField.setPlaceholderString_("https")
         self.urlField.cell().setWraps_(False)
         self.urlField.cell().setScrollable_(True)
         self.urlField.cell().setUsesSingleLineMode_(True)
         self.urlField.setMaximumNumberOfLines_(1)
 
-        # Paste button
+        # Paste button (icon-only)
         self.pasteButton.setBordered_(False)
-        self.pasteButton.setBezelStyle_(NSBezelStyleShadowlessSquare)  # shadowlessSquare
+        self.pasteButton.setBezelStyle_(NSBezelStyleShadowlessSquare)
         self.pasteButton.setImage_(NSImage.imageWithSystemSymbolName_accessibilityDescription_("doc.on.clipboard", "Paste"))
-        self.pasteButton.setImagePosition_(NSImageOnly)  # imageOnly
-        self.pasteButton.setButtonType_(NSMomentaryPushInButton)  # momentaryPushIn
+        self.pasteButton.setImagePosition_(NSImageOnly)
+        self.pasteButton.setButtonType_(NSMomentaryPushInButton)
         self.pasteButton.setToolTip_("Paste")
 
-        # Extract button
+        # Arrange URL row with a stack view
+        urlRow = NSStackView.stackViewWithViews_([self.urlInlineLabel, self.urlField, self.pasteButton])
+        urlRow.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
+        urlRow.setSpacing_(10.0)
+        urlRow.setTranslatesAutoresizingMaskIntoConstraints_(False)
+
+        # IMPORTANT: add into NSBox *contentView*, not directly to the box
+        urlContent = self.urlContainer.contentView()
+        urlContent.addSubview_(urlRow)
+
+        # The background “pill”
+        self.extractButtonBox.setBoxType_(NSBoxCustom)
+        self.extractButtonBox.setCornerRadius_(8.0)
+        self.extractButtonBox.setBorderWidth_(0.0)
+        self.extractButtonBox.setContentViewMargins_(NSMakeSize(0.0, 0.0))
+        self.extractButtonBox.setFillColor_(NSColor.systemBlueColor())
+        self.extractButtonBox.setTranslatesAutoresizingMaskIntoConstraints_(False)
+
+        # The actual clickable button, borderless, white title
         self.extractButton.setTitle_("Extract")
-        self.extractButton.setBordered_(False)
-        self.extractButton.setContentTintColor_(NSColor.whiteColor())
-        self.extractButton.setWantsLayer_(True)
+        self.extractButton.setBordered_(False)                     # no bezel; the box is our bezel
+        self.extractButton.setBezelStyle_(NSBezelStyleShadowlessSquare)
         self.extractButton.setFont_(NSFont.systemFontOfSize_weight_(NSFont.systemFontSize(), NSFontWeightSemibold))
-        layer = self.extractButton.layer()
-        layer.setBackgroundColor_(NSColor.systemBlueColor().CGColor())
-        layer.setCornerRadius_(8.0)
-        layer.setMasksToBounds_(True)
-
-
+        self.extractButton.setContentTintColor_(NSColor.whiteColor())  # white text
         attr = NSMutableAttributedString.alloc().initWithString_("Extract")
         self.extractButton.setAttributedTitle_(attr)
-        self.extractButton.setContentHuggingPriority_forOrientation_(1000, NSLayoutConstraintOrientationHorizontal)
-        self.extractButton.setContentCompressionResistancePriority_forOrientation_(1000, NSLayoutConstraintOrientationHorizontal)
 
-        
+        # Put the button inside the box’s contentView and center it with padding
+        extractContent = self.extractButtonBox.contentView()
+        # extractContent.addSubview_(self.extractButton)
+        self.extractButton.setTranslatesAutoresizingMaskIntoConstraints_(False)
+
+        # Outer subviews: add the box (not the button) to the root
+        extractContent.addSubview_(self.extractButton)
+
+        # ---- Log text
         self.logText.setEditable_(False)
         self.logText.setSelectable_(True)
         self.logText.setRichText_(False)
@@ -449,76 +472,69 @@ class ContentVC(NSViewController):
         self.logText.setDrawsBackground_(False)
         self.logText.setTextContainerInset_(NSMakeSize(10.0, 10.0))
         if self.logText.textContainer() is not None:
-            # Width tracks the scroll view, infinite height
             self.logText.textContainer().setWidthTracksTextView_(True)
-            # We don't know scroll width yet; set 0 here and update later in viewDidLayout
             self.logText.textContainer().setContainerSize_(NSMakeSize(0.0, float("inf")))
         self.logText.setString_("")
 
-        self.logScroll.setHasVerticalScroller_(True)
-        self.logScroll.setBorderType_(NSNoBorder)
-        self.logScroll.setDrawsBackground_(False)
-
-        # Logs container with rounded border
-        self.logContainer = NSView.alloc().init()
-        self.logContainer.setWantsLayer_(True)
-        if self.logContainer.layer() is None:
-            self.view().setWantsLayer_(True)
-            self.logContainer.setWantsLayer_(True)
-        if self.logContainer.layer() is not None:
-            self.logContainer.layer().setCornerRadius_(8.0)
-            self.logContainer.layer().setBorderWidth_(1)
-            self.logContainer.layer().setBorderColor_(NSColor.separatorColor().CGColor())
-            self.logContainer.layer().setBackgroundColor_(NSColor.controlBackgroundColor().CGColor())
+        # ---- Log container (NSBox) — dynamic colors, rounded, border
+        self.logContainer.setBoxType_(NSBoxCustom)
+        self.logContainer.setCornerRadius_(8.0)
+        self.logContainer.setBorderWidth_(1.0)
+        self.logContainer.setBorderColor_(NSColor.separatorColor())
+        self.logContainer.setFillColor_(NSColor.controlBackgroundColor())
+        self.logContainer.setContentViewMargins_(NSMakeSize(0.0, 0.0))
         self.logContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.logContainer.addSubview_(self.logScroll)
 
-        # Add subviews (outer)
-        for sub in (self.urlContainer, self.extractButton, self.statusPill, self.logContainer):
+        self.logScroll.setCornerRadius_(8.0)
+
+        # Add the scroll view into the NSBox contentView
+        logContent = self.logContainer.contentView()
+        logContent.addSubview_(self.logScroll)
+
+        # ---- Add outer subviews
+        for sub in (self.urlContainer, self.extractButtonBox, self.statusPill, self.logContainer):
             sub.setTranslatesAutoresizingMaskIntoConstraints_(False)
-            self.view().addSubview_(sub)
+            root.addSubview_(sub)
 
-        # Add URL inner
-        for sub in (self.urlInlineLabel, self.urlField, self.pasteButton):
-            sub.setTranslatesAutoresizingMaskIntoConstraints_(False)
-            self.urlContainer.addSubview_(sub)
-
-        # Constraints
+        # ---- Constraints (outer)
         NSLayoutConstraint.activateConstraints_([
-            self.urlContainer.leadingAnchor().constraintEqualToAnchor_constant_(self.view().leadingAnchor(), 24.0),
-            self.urlContainer.topAnchor().constraintEqualToAnchor_constant_(self.view().topAnchor(), 68.0),
-            self.urlContainer.trailingAnchor().constraintEqualToAnchor_constant_(self.extractButton.leadingAnchor(), -12.0),
+            # URL container (box)
+            self.urlContainer.leadingAnchor().constraintEqualToAnchor_constant_(root.leadingAnchor(), 24.0),
+            self.urlContainer.topAnchor().constraintEqualToAnchor_constant_(root.topAnchor(), 68.0),
+            self.urlContainer.trailingAnchor().constraintEqualToAnchor_constant_(self.extractButtonBox.leadingAnchor(), -12.0),
             self.urlContainer.heightAnchor().constraintEqualToConstant_(32.0),
 
-            self.urlInlineLabel.leadingAnchor().constraintEqualToAnchor_constant_(self.urlContainer.leadingAnchor(), 10.0),
-            self.urlInlineLabel.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
+            urlRow.leadingAnchor().constraintEqualToAnchor_constant_(urlContent.leadingAnchor(), 10.0),
+            urlRow.trailingAnchor().constraintEqualToAnchor_constant_(urlContent.trailingAnchor(), -10.0),
+            urlRow.centerYAnchor().constraintEqualToAnchor_(urlContent.centerYAnchor()),
 
-            self.urlField.leadingAnchor().constraintEqualToAnchor_constant_(self.urlInlineLabel.trailingAnchor(), 10.0),
-            self.urlField.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
-            self.urlField.trailingAnchor().constraintEqualToAnchor_constant_(self.pasteButton.leadingAnchor(), -8.0),
+            self.extractButtonBox.trailingAnchor().constraintEqualToAnchor_constant_(root.trailingAnchor(), -24.0),
+            self.extractButtonBox.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
+            self.extractButtonBox.heightAnchor().constraintEqualToConstant_(32.0),
+            self.extractButtonBox.widthAnchor().constraintEqualToConstant_(76.0),
 
-            self.pasteButton.trailingAnchor().constraintEqualToAnchor_constant_(self.urlContainer.trailingAnchor(), -10.0),
-            self.pasteButton.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
+            # Extract button
+            self.extractButton.centerXAnchor().constraintEqualToAnchor_(extractContent.centerXAnchor()),
+            self.extractButton.centerYAnchor().constraintEqualToAnchor_(extractContent.centerYAnchor()),
+            self.extractButton.leadingAnchor().constraintGreaterThanOrEqualToAnchor_constant_(extractContent.leadingAnchor(), 8.0),
+            self.extractButton.trailingAnchor().constraintLessThanOrEqualToAnchor_constant_(extractContent.trailingAnchor(), -8.0),
 
-            self.extractButton.trailingAnchor().constraintEqualToAnchor_constant_(self.view().trailingAnchor(), -24.0),
-            self.extractButton.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
-            self.extractButton.heightAnchor().constraintEqualToConstant_(32.0),
-            self.extractButton.widthAnchor().constraintEqualToConstant_(76.0),
-
+            # Status pill
             self.statusPill.leadingAnchor().constraintEqualToAnchor_(self.urlContainer.leadingAnchor()),
-            self.statusPill.trailingAnchor().constraintEqualToAnchor_(self.extractButton.trailingAnchor()),
+            self.statusPill.trailingAnchor().constraintEqualToAnchor_(self.extractButtonBox.trailingAnchor()),
             self.statusPill.topAnchor().constraintEqualToAnchor_constant_(self.urlContainer.bottomAnchor(), 12.0),
             self.statusPill.heightAnchor().constraintGreaterThanOrEqualToConstant_(32.0),
 
+            # Log container (box)
             self.logContainer.leadingAnchor().constraintEqualToAnchor_(self.statusPill.leadingAnchor()),
             self.logContainer.trailingAnchor().constraintEqualToAnchor_(self.statusPill.trailingAnchor()),
             self.logContainer.topAnchor().constraintEqualToAnchor_constant_(self.statusPill.bottomAnchor(), 12.0),
-            self.logContainer.bottomAnchor().constraintEqualToAnchor_constant_(self.view().bottomAnchor(), -20.0),
+            self.logContainer.bottomAnchor().constraintEqualToAnchor_constant_(root.bottomAnchor(), -20.0),
 
-            self.logScroll.leadingAnchor().constraintEqualToAnchor_(self.logContainer.leadingAnchor()),
-            self.logScroll.trailingAnchor().constraintEqualToAnchor_(self.logContainer.trailingAnchor()),
-            self.logScroll.topAnchor().constraintEqualToAnchor_(self.logContainer.topAnchor()),
-            self.logScroll.bottomAnchor().constraintEqualToAnchor_(self.logContainer.bottomAnchor()),
+            self.logScroll.leadingAnchor().constraintEqualToAnchor_(logContent.leadingAnchor()),
+            self.logScroll.trailingAnchor().constraintEqualToAnchor_(logContent.trailingAnchor()),
+            self.logScroll.topAnchor().constraintEqualToAnchor_(logContent.topAnchor()),
+            self.logScroll.bottomAnchor().constraintEqualToAnchor_(logContent.bottomAnchor()),
         ])
 
         # Actions
@@ -557,7 +573,7 @@ class ContentVC(NSViewController):
             NSBeep()
             return
 
-        if not text.lower().startswith("https://"): # TODO: add proper validation
+        if not text.lower().startswith("https://"):  # TODO: add proper validation
             alert = NSAlert.alloc().init()
             alert.setMessageText_("Invalid URL")
             alert.setInformativeText_("Please enter a valid URL.")
@@ -579,7 +595,7 @@ class ContentVC(NSViewController):
             path = self.downloader.download(url, normalization=normalization)
             self.logger.info(f"Download finished successfully: {path}")
             send_notification("Download Completed", os.path.basename(path))
-            
+
             self.performSelectorOnMainThread_withObject_waitUntilDone_("finishExtract:", path, True)
 
         except Exception as e:
@@ -592,6 +608,12 @@ class ContentVC(NSViewController):
         try:
             self.statusPill.setKind_message_(StatusPill.KindProgress, "Saving File")
             file = self.presentSavePanelForPath_(src_path)
+            
+            if file is None:
+                self.logger.warning("Save cancelled by user.")
+                self.statusPill.setKind_message_(StatusPill.KindError, "User Cancelled")
+                return
+
             self.addToSidebar_({
                 "file": os.path.basename(file),
                 "url": self.urlField.stringValue().strip()
@@ -607,23 +629,17 @@ class ContentVC(NSViewController):
         self.extractButton.setEnabled_(not is_busy)
         self.pasteButton.setEnabled_(not is_busy)
         self.urlField.setEnabled_(not is_busy)
-        self.urlField.setEditable_(not is_busy)
-
         if not is_busy:
             self.urlField.setStringValue_("")
 
     def presentSavePanelForPath_(self, src_path):
-
         save_path = self.openSavePanel_(src_path)
-        while save_path is None:
-            save_path = self.openSavePanel_(src_path)
+        if save_path is None:
+            return None
 
         self.logger.info(f"Saving to: {save_path}")
-
         self.downloader.move_file(src_path, save_path)
-
         self.logger.info("File saved successfully.")
-
         return save_path
 
     def openSavePanel_(self, src_path):
@@ -631,24 +647,19 @@ class ContentVC(NSViewController):
             panel = NSSavePanel.savePanel()
             panel.setAllowsOtherFileTypes_(False)
             panel.setAllowedFileTypes_(["mp3"])
-
             suggested = os.path.basename(src_path)
             panel.setNameFieldStringValue_(suggested)
-            
             resp = panel.runModal()
-            
             if not resp or resp != NSModalResponseOK:
                 return None
-            
             return panel.URL().path()
         except Exception as e:
             self.logger.error(f"Error showing save dialog: {e}")
             return None
-        
+
     def addToSidebar_(self, newMediaItem):
-        self.sidebarVC.performSelectorOnMainThread_withObject_waitUntilDone_(
-            "addRow:", newMediaItem, True
-        )
+        self.sidebarVC.performSelectorOnMainThread_withObject_waitUntilDone_("addRow:", newMediaItem, True)
+
 
 # -----------------------------
 # Split container
