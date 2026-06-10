@@ -26,7 +26,7 @@ class URLRowView(NSView):
         self.urlContainer.setCornerRadius_(6.0)
         self.urlContainer.setBorderWidth_(1.0)
         self.urlContainer.setBorderColor_(NSColor.separatorColor())
-        self.urlContainer.setFillColor_(NSColor.quaternarySystemFillColor())
+        self.urlContainer.setFillColor_(NSColor.tertiarySystemFillColor())
         self.urlContainer.setContentViewMargins_(NSMakeSize(0.0, 0.0))
         self.urlContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
 

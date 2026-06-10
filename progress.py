@@ -292,7 +292,7 @@ class ProgressStepsView(NSView):
         self.background.setCornerRadius_(8.0)
         self.background.setBorderWidth_(1.0)
         self.background.setBorderColor_(NSColor.separatorColor())
-        self.background.setFillColor_(NSColor.quaternarySystemFillColor())
+        self.background.setFillColor_(NSColor.tertiarySystemFillColor())
         self.background.setContentViewMargins_(NSMakeSize(0.0, 0.0))
 
         self.stack = NSStackView.alloc().init()
@@ -328,19 +328,19 @@ class ProgressStepsView(NSView):
 
             self.stack.leadingAnchor().constraintEqualToAnchor_constant_(
                 bgContent.leadingAnchor(),
-                16,
+                10,
             ),
             self.stack.trailingAnchor().constraintEqualToAnchor_constant_(
                 bgContent.trailingAnchor(),
-                -16,
+                -10,
             ),
             self.stack.topAnchor().constraintEqualToAnchor_constant_(
                 bgContent.topAnchor(),
-                16,
+                10,
             ),
             self.stack.bottomAnchor().constraintEqualToAnchor_constant_(
                 bgContent.bottomAnchor(),
-                -16,
+                -10,
             ),
         ])
 
@@ -467,7 +467,6 @@ class ProgressStepsView(NSView):
     # --------------------------------------------------------
 
     def reset(self):
-
         for view in list(self.stack.arrangedSubviews()):
             self.stack.removeArrangedSubview_(view)
             view.removeFromSuperview()

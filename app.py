@@ -17,7 +17,7 @@ from Cocoa import (
     NSToolbarDisplayModeIconOnly, NSToolbarToggleSidebarItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier,
     NSToolbarItem, NSWindowTabbingModeDisallowed, NSWindowStyleMaskFullSizeContentView, NSWindowToolbarStyleUnified,
     NSTableViewAnimationSlideUp, NSTableViewAnimationSlideDown, NSTableViewAnimationEffectFade,
-    NSUserDefaults
+    NSUserDefaults, NSToolbarItemVisibilityPriorityHigh
 )
 from AppKit import (
     NSTableView, NSTableColumn, NSImageSymbolConfiguration, NSBeep
@@ -49,6 +49,7 @@ from menu import buildMenus
 from settings import SettingsWindowController
 from url_row import URLRowView
 from sidebar import SidebarVC
+from log_viewer import LogViewer
 from enum import Enum
 from re import compile
 
@@ -117,22 +118,17 @@ class ContentVC(NSViewController):
             return None
         self.sidebarVC = None  # to be set by parent
 
-        # Containers (NSBox so colors auto-adapt to appearance)
-        self.logContainer = NSBox.alloc().init()
-
         # UI elements
         self.urlRow = None
         self.progressSteps = ProgressStepsView.alloc().init()
+        self.progressSteps.setHidden_(True)
+        self.logViewer = LogViewer.alloc().init()
+        self.logViewer.setHidden_(True)
 
         # Logger / worker
         self.logger = DownloaderLogger(self._enqueue_log, self.updateProgress_)
         self.userDefaults = UserDefaults()
         self.downloader = Downloader(self.logger)
-
-        # Log text view inside a scroll view
-        self.logScroll = NSTextView.scrollablePlainDocumentContentTextView()
-        self.logScroll.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.logText = self.logScroll.documentView()  # type: NSTextView
 
         return self
 
@@ -150,37 +146,8 @@ class ContentVC(NSViewController):
         self.urlRow = URLRowView.alloc().initWithTarget_action_(self, "extract:")
         self.urlRow.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
-        # ---- Log text
-        self.logText.setEditable_(False)
-        self.logText.setSelectable_(True)
-        self.logText.setRichText_(False)
-        self.logText.setLayoutOrientation_(NSTextLayoutOrientationHorizontal)
-        self.logText.setFont_(NSFont.userFixedPitchFontOfSize_(13.0))
-        self.logText.setTextColor_(NSColor.labelColor())
-        self.logText.setDrawsBackground_(False)
-        self.logText.setTextContainerInset_(NSMakeSize(10.0, 10.0))
-        if self.logText.textContainer() is not None:
-            self.logText.textContainer().setWidthTracksTextView_(True)
-            self.logText.textContainer().setContainerSize_(NSMakeSize(0.0, float("inf")))
-        self.logText.setString_("")
-
-        # ---- Log container (NSBox) — dynamic colors, rounded, border
-        self.logContainer.setBoxType_(NSBoxCustom)
-        self.logContainer.setCornerRadius_(8.0)
-        self.logContainer.setBorderWidth_(1.0)
-        self.logContainer.setBorderColor_(NSColor.separatorColor())
-        self.logContainer.setFillColor_(NSColor.controlBackgroundColor())
-        self.logContainer.setContentViewMargins_(NSMakeSize(0.0, 0.0))
-        self.logContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
-
-        self.logScroll.setCornerRadius_(8.0)
-
-        # Add the scroll view into the NSBox contentView
-        logContent = self.logContainer.contentView()
-        logContent.addSubview_(self.logScroll)
-
         # ---- Add outer subviews
-        for sub in (self.urlRow, self.progressSteps, self.logContainer):
+        for sub in (self.urlRow, self.progressSteps, self.logViewer):
             sub.setTranslatesAutoresizingMaskIntoConstraints_(False)
             root.addSubview_(sub)
 
@@ -196,35 +163,22 @@ class ContentVC(NSViewController):
             self.progressSteps.topAnchor().constraintEqualToAnchor_constant_(self.urlRow.bottomAnchor(), 12.0),
             self.progressSteps.heightAnchor().constraintGreaterThanOrEqualToConstant_(32.0),
 
-            # Log container (box)
-            self.logContainer.leadingAnchor().constraintEqualToAnchor_(self.progressSteps.leadingAnchor()),
-            self.logContainer.trailingAnchor().constraintEqualToAnchor_(self.progressSteps.trailingAnchor()),
-            self.logContainer.topAnchor().constraintEqualToAnchor_constant_(self.progressSteps.bottomAnchor(), 12.0),
-            self.logContainer.bottomAnchor().constraintEqualToAnchor_constant_(root.bottomAnchor(), -20.0),
-
-            self.logScroll.leadingAnchor().constraintEqualToAnchor_(logContent.leadingAnchor()),
-            self.logScroll.trailingAnchor().constraintEqualToAnchor_(logContent.trailingAnchor()),
-            self.logScroll.topAnchor().constraintEqualToAnchor_(logContent.topAnchor()),
-            self.logScroll.bottomAnchor().constraintEqualToAnchor_(logContent.bottomAnchor()),
+            self.logViewer.leadingAnchor().constraintEqualToAnchor_(self.progressSteps.leadingAnchor()),
+            self.logViewer.trailingAnchor().constraintEqualToAnchor_(self.progressSteps.trailingAnchor()),
+            self.logViewer.topAnchor().constraintEqualToAnchor_constant_(self.progressSteps.bottomAnchor(), 12.0),
+            self.logViewer.bottomAnchor().constraintEqualToAnchor_constant_(root.bottomAnchor(), -20.0),
         ])
 
     def viewDidLayout(self):
         objc.super(ContentVC, self).viewDidLayout()
-        # Keep wrapping width synced
-        if self.logText.textContainer() is not None and self.logScroll.contentView() is not None:
-            w = self.logScroll.contentView().bounds().size.width
-            self.logText.textContainer().setContainerSize_(NSMakeSize(w, float("inf")))
-            self.logText.textContainer().setWidthTracksTextView_(True)
 
     def _enqueue_log(self, text):
         self.performSelectorOnMainThread_withObject_waitUntilDone_("appendLog:", text, False)
 
     def appendLog_(self, text):
-        self.logText.setString_(text)
-        self.logText.scrollRangeToVisible_(NSMakeRange(len(text), 0))
+        self.logViewer.appendLog_(text)
 
     def extract_(self, sender):
-        self.progressSteps.reset()
         text = self.urlRow.urlValue().strip()
         if not text:
             NSBeep()
@@ -238,6 +192,9 @@ class ContentVC(NSViewController):
             alert.runModal()
             return
 
+        if self.progressSteps.isHidden():
+            self.progressSteps.setHidden_(False)
+        self.progressSteps.reset()
         self.logger.reset()
         self.logger.info("Extract started.")
         self.setBusy_(True)
@@ -343,6 +300,7 @@ class RootSplitVC(NSSplitViewController):
         leftVC = SidebarVC.alloc().init()
         rightVC = ContentVC.alloc().init()
         rightVC.sidebarVC = leftVC
+        self.contentVC = rightVC
         left = NSSplitViewItem.sidebarWithViewController_(leftVC)
         right = NSSplitViewItem.splitViewItemWithViewController_(rightVC)
         self.addSplitViewItem_(left)
@@ -361,6 +319,7 @@ class NotificationDelegate(NSObject):
 class AppDelegate(NSObject):
     window = objc.ivar()
     splitVC = objc.ivar()
+    logToggleItem = objc.ivar()
 
     def applicationDidFinishLaunching_(self, notification):
         NSApp.setActivationPolicy_(NSApplicationActivationPolicyRegular)
@@ -410,10 +369,10 @@ class AppDelegate(NSObject):
         SettingsWindowController.sharedController().showWindow_(sender)
     
     def toolbarAllowedItemIdentifiers_(self, toolbar):
-        return [NSToolbarToggleSidebarItemIdentifier, NSToolbarSidebarTrackingSeparatorItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier]
+        return [NSToolbarToggleSidebarItemIdentifier, NSToolbarSidebarTrackingSeparatorItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier, "ToggleLogsItem"]
 
     def toolbarDefaultItemIdentifiers_(self, toolbar):
-        return [NSToolbarToggleSidebarItemIdentifier, NSToolbarSidebarTrackingSeparatorItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier]
+        return [NSToolbarToggleSidebarItemIdentifier, NSToolbarSidebarTrackingSeparatorItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier, "ToggleLogsItem"]
     
     def toolbar_itemForItemIdentifier_willBeInsertedIntoToolbar_(self, toolbar, identifier, flag):
         if identifier == NSToolbarToggleSidebarItemIdentifier:
@@ -423,6 +382,36 @@ class AppDelegate(NSObject):
             item.setTarget_(self.splitVC)
             item.setAction_("toggleSidebar:")
             return item
+
+        if identifier == "ToggleLogsItem":
+            item = NSToolbarItem.alloc().initWithItemIdentifier_(identifier)
+            item.setLabel_("Logs")
+            item.setPaletteLabel_("Logs")
+            item.setTarget_(self)
+            item.setAction_("toggleLogs:")
+            item.setImage_(NSImage.imageWithSystemSymbolName_accessibilityDescription_("terminal", "Logs"))
+            item.setToolTip_("Logs")
+            item.setBordered_(True)
+            item.setVisibilityPriority_(NSToolbarItemVisibilityPriorityHigh)
+            self.logToggleItem = item
+            return item
+
+    def toggleLogs_(self, sender):
+        if not hasattr(self.splitVC, 'contentVC') or self.splitVC.contentVC is None:
+            return
+
+        logViewer = self.splitVC.contentVC.logViewer
+        new_hidden = not logViewer.isHidden()
+        logViewer.setHidden_(new_hidden)
+
+        if new_hidden:
+            image = NSImage.imageWithSystemSymbolName_accessibilityDescription_("terminal", "Logs")
+            self.logToggleItem.setImage_(image)
+        else:
+            image = NSImage.imageWithSystemSymbolName_accessibilityDescription_("terminal.fill", "Logs")
+            config = NSImageSymbolConfiguration.configurationWithPaletteColors_([NSColor.systemBlueColor()])
+            image = image.imageWithSymbolConfiguration_(config)
+            self.logToggleItem.setImage_(image)
 
 
 def main():
