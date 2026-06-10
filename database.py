@@ -2,6 +2,8 @@ import sqlite3
 import time
 from typing import List, Dict, Any, Optional
 
+# TODO: use peewee
+
 DB_FILENAME = "media.db"
 
 class MediaDB:

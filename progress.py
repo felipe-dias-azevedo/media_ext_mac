@@ -292,7 +292,7 @@ class ProgressStepsView(NSView):
         self.background.setCornerRadius_(8.0)
         self.background.setBorderWidth_(1.0)
         self.background.setBorderColor_(NSColor.separatorColor())
-        self.background.setFillColor_(NSColor.controlBackgroundColor())
+        self.background.setFillColor_(NSColor.quaternarySystemFillColor())
         self.background.setContentViewMargins_(NSMakeSize(0.0, 0.0))
 
         self.stack = NSStackView.alloc().init()
@@ -386,9 +386,8 @@ class ProgressStepsView(NSView):
         description=None,
         icon=None,
     ):
-
-        if self.currentRow:
-            return
+        # if self.currentRow:
+        #     return
 
         self.currentRow = StepRowView.alloc().init()
 

@@ -1,4 +1,4 @@
 imageio-ffmpeg==0.6.0
 pyinstaller==6.15.0
-pyobjc==11.1
-yt-dlp==2026.2.4
+pyobjc==12.2
+yt-dlp==2026.3.17

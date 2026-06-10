@@ -40,20 +40,35 @@ from sys import argv
 from datetime import datetime
 from database import MediaDB, DB_FILENAME
 from downloader import Downloader
+from progress import ProgressStepsView
 from user_defaults import UserDefaults
 from models import MediaItem, HistoryFormatter
 from db_path import db_path
 from notifications import send_notification
 from menu import buildMenus
 from settings import SettingsWindowController
+from url_row import URLRowView
+from sidebar import SidebarVC
+from enum import Enum
+from re import compile
 
+
+PERCENT_RE = compile(r'\d+(?:\.\d+)?%')
 
 class DownloaderLogger:
-    def __init__(self, handler):
+    def __init__(self, handler, progress_handler=None):
         self.content = ""
         self.handler = handler
+        self.progress_handler = progress_handler
 
     def output(self, text):
+        if "[download]" in text:
+            match = PERCENT_RE.search(text)
+            if match and "100" in match[0]:
+                self.progress_handler((ProgressStatus.UPDATE, "Downloading", match[0] + " - Converting file...", None))
+            elif match:
+                self.progress_handler((ProgressStatus.UPDATE, "Downloading", match[0], None))
+        
         self.content += text + "\n"
 
         if "--dev" in argv:
@@ -76,279 +91,19 @@ class DownloaderLogger:
     def reset(self):
         self.content = ""
 
+class ProgressStatus(Enum):
+    ADD = 0
+    BEGIN = 1
+    UPDATE = 2
+    SUCCESS = 3
+    ERROR = 4
 
-# -----------------------------
-# Sidebar VC
-# -----------------------------
+def human_size(num_bytes):
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if num_bytes < 1000:
+            return f"{num_bytes:.1f} {unit}"
+        num_bytes /= 1000
 
-class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewDataSource"),
-                                             objc.protocolNamed("NSTableViewDelegate")]):
-    def init(self):
-        self = objc.super(SidebarVC, self).init()
-        if self is None:
-            return None
-        self.table = NSTableView.alloc().init()
-        self.scroll = NSScrollView.alloc().init()
-        self.visualEffect = NSVisualEffectView.alloc().init()
-
-        self.db = MediaDB(db_path=db_path(DB_FILENAME, dev_env="--dev" in argv))
-        self.data = []
-
-        # center = NSNotificationCenter.defaultCenter()
-        # center.addObserver_selector_name_object_(
-        #     self, 
-        #     objc.selector(self._appWillTerminate_, signature=b"v@:@"),
-        #     NSApplication.willTerminateNotification, 
-        #     None
-        # )
-
-        return self
-
-    def loadView(self):
-        view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 250, 350))
-        view.setWantsLayer_(True)
-        self.setView_(view)
-        
-        # Add visual effect view first
-        self.visualEffect.setMaterial_(NSVisualEffectMaterialSidebar)
-        self.visualEffect.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
-        self.visualEffect.setState_(NSVisualEffectStateActive)
-        self.visualEffect.setWantsLayer_(True)
-        self.visualEffect.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.view().addSubview_(self.visualEffect)
-        
-        # Make scroll view transparent
-        self.scroll.setDrawsBackground_(False)
-        self.table.setBackgroundColor_(NSColor.clearColor())
-        
-        # Configure table
-        self.table.setHeaderView_(None)
-        self.table.setRowHeight_(48.0)
-        self.table.setIntercellSpacing_(NSMakeSize(0.0, 0.0))
-        self.table.setStyle_(NSTableViewStyleInset)
-
-        # Add column
-        col = NSTableColumn.alloc().initWithIdentifier_("main")
-        self.table.addTableColumn_(col)
-        self.table.setDelegate_(self)
-        self.table.setDataSource_(self)
-        
-        # Configure scroll view
-        self.scroll.setDocumentView_(self.table)
-        self.scroll.setHasVerticalScroller_(True)
-        self.scroll.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.view().addSubview_(self.scroll)
-
-        # Update constraints to include visual effect view
-        NSLayoutConstraint.activateConstraints_([
-            # Pin visual effect to all edges
-            self.visualEffect.topAnchor().constraintEqualToAnchor_(self.view().topAnchor()),
-            self.visualEffect.leadingAnchor().constraintEqualToAnchor_(self.view().leadingAnchor()),
-            self.visualEffect.trailingAnchor().constraintEqualToAnchor_(self.view().trailingAnchor()),
-            self.visualEffect.bottomAnchor().constraintEqualToAnchor_(self.view().bottomAnchor()),
-            
-            # Existing scroll view constraints
-            self.scroll.leadingAnchor().constraintEqualToAnchor_(self.view().leadingAnchor()),
-            self.scroll.trailingAnchor().constraintEqualToAnchor_(self.view().trailingAnchor()),
-            self.scroll.topAnchor().constraintEqualToAnchor_(self.view().topAnchor()),
-            self.scroll.bottomAnchor().constraintEqualToAnchor_(self.view().bottomAnchor()),
-        ])
-
-    def viewDidLoad(self):
-        objc.super(SidebarVC, self).viewDidLoad()
-        self.getHistoryData_(None)
-
-    # Data source
-    def numberOfRowsInTableView_(self, tableView):
-        return len(self.data)
-
-    # Group rows
-    def tableView_isGroupRow_(self, tableView, row):
-        return bool(self.data[row].isGroup)
-
-    def tableView_shouldSelectRow_(self, tableView, row):
-        return self.data[row].isGroup == False
-
-    # Views per row
-    def tableView_viewForTableColumn_row_(self, tableView, tableColumn, row):
-        item = self.data[row]
-        v = NSTableCellView.alloc().init()
-        if item.isGroup:
-            label = NSTextField.labelWithString_(item.title)
-            label.setFont_(NSFont.boldSystemFontOfSize_(NSFont.systemFontSize()))
-            label.setTextColor_(NSColor.secondaryLabelColor())
-            v.addSubview_(label)
-            label.setTranslatesAutoresizingMaskIntoConstraints_(False)
-            NSLayoutConstraint.activateConstraints_([
-                label.leadingAnchor().constraintEqualToAnchor_constant_(v.leadingAnchor(), 12.0),
-                label.centerYAnchor().constraintEqualToAnchor_(v.centerYAnchor())
-            ])
-            return v
-        else:
-            title = NSTextField.labelWithString_(item.title)
-            title.setFont_(NSFont.systemFontOfSize_(12.0))
-            title.setLineBreakMode_(NSLineBreakByTruncatingMiddle)  # byTruncatingMiddle
-            # TODO: add tooltip to title label
-
-            sub = NSTextField.labelWithString_(item.timestamp)
-            sub.setFont_(NSFont.systemFontOfSize_(10.0))
-            sub.setTextColor_(NSColor.secondaryLabelColor())
-
-            v.addSubview_(title)
-            v.addSubview_(sub)
-            title.setTranslatesAutoresizingMaskIntoConstraints_(False)
-            sub.setTranslatesAutoresizingMaskIntoConstraints_(False)
-            NSLayoutConstraint.activateConstraints_([
-                title.leadingAnchor().constraintEqualToAnchor_constant_(v.leadingAnchor(), 12.0),
-                title.trailingAnchor().constraintEqualToAnchor_constant_(v.trailingAnchor(), -12.0),
-                title.topAnchor().constraintEqualToAnchor_constant_(v.topAnchor(), 6.0),
-                sub.leadingAnchor().constraintEqualToAnchor_(title.leadingAnchor()),
-                sub.trailingAnchor().constraintEqualToAnchor_(title.trailingAnchor()),
-                sub.topAnchor().constraintEqualToAnchor_constant_(title.bottomAnchor(), 0.0),
-                sub.bottomAnchor().constraintEqualToAnchor_constant_(v.bottomAnchor(), -6.0),
-            ])
-            return v
-        
-    def addRow_(self, obj):
-        if obj is None:
-            return
-        
-        idxs = NSMutableIndexSet.indexSet()
-
-        if len(self.data) > 0:
-            firstIndex = self.data[0]
-            addGroup = not (firstIndex.isGroup and firstIndex.title == "Just now")
-        else:
-            addGroup = True
-
-        items = [MediaItem.item(obj["file"], datetime.now().strftime("%y/%m/%d, %H:%M:%S"))]
-        if (addGroup):
-            items.insert(0, MediaItem.group("Just now"))
-
-            self.data[0:0] = items[:2]
-
-            idxs.addIndex_(0)
-            idxs.addIndex_(1)
-        else:
-            self.data[1:1] = items
-
-            idxs.addIndex_(1)
-
-        self.table.beginUpdates()
-        self.table.insertRowsAtIndexes_withAnimation_(
-            idxs, (NSTableViewAnimationSlideDown | NSTableViewAnimationEffectFade)
-        )
-        self.table.endUpdates()
-
-        self.table.scrollRowToVisible_(0)
-
-        self.performSelectorOnMainThread_withObject_waitUntilDone_("addHistoryData:", obj, False)
-
-    def getHistoryData_(self, sender=None):
-        self.data = HistoryFormatter().format(self.db.select_history())
-        self.table.reloadData()
-
-    def addHistoryData_(self, obj):
-        self.db.insert_history(obj["file"], obj["url"])
-
-    def _appWillTerminate_(self, note):
-        self.db.close()
-
-
-# -----------------------------
-# Status Pill
-# -----------------------------
-
-class StatusPill(NSView):
-    KindNone = 0
-    KindSuccess = 1
-    KindProgress = 2
-    KindError = 3
-
-    def init(self):
-        self = objc.super(StatusPill, self).init()
-        if self is None:
-            return None
-
-        self.box = NSBox.alloc().init()
-        self.icon = NSImageView.alloc().init()
-        self.spinner = NSProgressIndicator.alloc().init()
-        self.label = NSTextField.labelWithString_("")
-
-        self.box.setBoxType_(NSBoxCustom)
-        self.box.setCornerRadius_(8.0)
-        self.box.setBorderWidth_(1)
-        self.box.setBorderColor_(NSColor.separatorColor())
-        self.box.setFillColor_(NSColor.controlBackgroundColor())
-        self.addSubview_(self.box)
-
-        conf = NSImageSymbolConfiguration.configurationWithPointSize_weight_(14.0, NSFontWeightSemibold)
-        self.icon.setSymbolConfiguration_(conf)
-        img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("checkmark", None)
-        self.icon.setContentTintColor_(NSColor.systemGreenColor())
-        self.icon.setImage_(img)
-
-        self.spinner.setStyle_(NSProgressIndicatorStyleSpinning)  # NSProgressIndicatorStyleSpinning
-        self.spinner.setControlSize_(1)  # small
-        self.spinner.setDisplayedWhenStopped_(False)
-        self.label.setFont_(NSFont.systemFontOfSize_weight_(14.0, NSFontWeightMedium))
-
-        stack = NSStackView.stackViewWithViews_([self.icon, self.spinner, self.label])
-        stack.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
-        stack.setSpacing_(8.0)
-        # stack.setAlignment_(NSStackViewAlignmentCenterY)
-        self.addSubview_(stack)
-        self.stack = stack
-
-        for sub in (self.box, stack):
-            sub.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        NSLayoutConstraint.activateConstraints_([
-            self.box.leadingAnchor().constraintEqualToAnchor_(self.leadingAnchor()),
-            self.box.trailingAnchor().constraintEqualToAnchor_(self.trailingAnchor()),
-            self.box.topAnchor().constraintEqualToAnchor_(self.topAnchor()),
-            self.box.bottomAnchor().constraintEqualToAnchor_(self.bottomAnchor()),
-
-            stack.leadingAnchor().constraintEqualToAnchor_constant_(self.leadingAnchor(), 16.0),
-            stack.trailingAnchor().constraintLessThanOrEqualToAnchor_constant_(self.trailingAnchor(), -16.0),
-            stack.topAnchor().constraintEqualToAnchor_constant_(self.topAnchor(), 8.0),
-            stack.bottomAnchor().constraintEqualToAnchor_constant_(self.bottomAnchor(), -8.0),
-        ])
-        self.reset_()
-        return self
-
-    def setKind_message_(self, kind, msg):
-        if kind == self.KindNone:
-            self.reset_()    
-        elif kind == self.KindSuccess:
-            self.spinner.stopAnimation_(None)
-            self.spinner.setHidden_(True)
-            self.icon.setHidden_(False)
-            img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("checkmark", None)
-            self.icon.setImage_(img)
-            self.icon.setContentTintColor_(NSColor.systemGreenColor())
-            self.label.setStringValue_(msg)
-            self.label.setTextColor_(NSColor.systemGreenColor())
-        elif kind == self.KindError:
-            self.spinner.stopAnimation_(None)
-            self.spinner.setHidden_(True)
-            self.icon.setHidden_(False)
-            img = NSImage.imageWithSystemSymbolName_accessibilityDescription_("xmark", None)
-            self.icon.setImage_(img)
-            self.icon.setContentTintColor_(NSColor.systemRedColor())
-            self.label.setStringValue_(msg)
-            self.label.setTextColor_(NSColor.systemRedColor())
-        else:
-            self.icon.setHidden_(True)
-            self.spinner.setHidden_(False)
-            self.spinner.startAnimation_(None)
-            self.label.setStringValue_(msg)
-            self.label.setTextColor_(NSColor.labelColor())
-
-    def reset_(self, sender=None):
-        self.icon.setHidden_(True)
-        self.spinner.setHidden_(True)
-        self.label.setStringValue_("")
-        self.label.setTextColor_(NSColor.labelColor())
 
 # -----------------------------
 # Content VC (right side)
@@ -363,19 +118,14 @@ class ContentVC(NSViewController):
         self.sidebarVC = None  # to be set by parent
 
         # Containers (NSBox so colors auto-adapt to appearance)
-        self.urlContainer = NSBox.alloc().init()
         self.logContainer = NSBox.alloc().init()
-        self.extractButtonBox = NSBox.alloc().init()
 
         # UI elements
-        self.urlInlineLabel = NSTextField.labelWithString_("URL")
-        self.urlField = NSTextField.alloc().init()
-        self.pasteButton = NSButton.alloc().init()
-        self.extractButton = NSButton.alloc().init()
-        self.statusPill = StatusPill.alloc().init()
+        self.urlRow = None
+        self.progressSteps = ProgressStepsView.alloc().init()
 
         # Logger / worker
-        self.logger = DownloaderLogger(self._enqueue_log)
+        self.logger = DownloaderLogger(self._enqueue_log, self.updateProgress_)
         self.userDefaults = UserDefaults()
         self.downloader = Downloader(self.logger)
 
@@ -388,79 +138,17 @@ class ContentVC(NSViewController):
 
     def viewDidAppear(self):
         objc.super(ContentVC, self).viewDidAppear()
-        self.extractButton.setKeyEquivalent_("\r")
+        self.urlRow.extractButton.setKeyEquivalent_("\r")
         if self.view().window() is not None:
-            self.view().window().setDefaultButtonCell_(self.extractButton.cell())
+            self.view().window().setDefaultButtonCell_(self.urlRow.extractButton.cell())
 
     def loadView(self):
         root = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 600, 400))
         self.setView_(root)
 
-        # ---- URL container (NSBox) — dynamic colors, rounded, border
-        self.urlContainer.setBoxType_(NSBoxCustom)
-        self.urlContainer.setCornerRadius_(6.0)
-        self.urlContainer.setBorderWidth_(1.0)
-        self.urlContainer.setBorderColor_(NSColor.separatorColor())
-        self.urlContainer.setFillColor_(NSColor.quaternarySystemFillColor())
-        self.urlContainer.setContentViewMargins_(NSMakeSize(0.0, 0.0))
-        self.urlContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
-
-        # URL label
-        self.urlInlineLabel.setFont_(NSFont.systemFontOfSize_(12.0))
-        self.urlInlineLabel.setTextColor_(NSColor.labelColor())
-
-        # URL field
-        self.urlField.setBordered_(False)
-        self.urlField.setDrawsBackground_(False)
-        self.urlField.setFocusRingType_(NSFocusRingTypeNone)
-        self.urlField.setPlaceholderString_("https")
-        self.urlField.cell().setWraps_(False)
-        self.urlField.cell().setScrollable_(True)
-        self.urlField.cell().setUsesSingleLineMode_(True)
-        self.urlField.setMaximumNumberOfLines_(1)
-
-        # Paste button (icon-only)
-        self.pasteButton.setBordered_(False)
-        self.pasteButton.setBezelStyle_(NSBezelStyleShadowlessSquare)
-        self.pasteButton.setImage_(NSImage.imageWithSystemSymbolName_accessibilityDescription_("doc.on.clipboard", "Paste"))
-        self.pasteButton.setImagePosition_(NSImageOnly)
-        self.pasteButton.setButtonType_(NSMomentaryPushInButton)
-        self.pasteButton.setToolTip_("Paste")
-
-        # Arrange URL row with a stack view
-        urlRow = NSStackView.stackViewWithViews_([self.urlInlineLabel, self.urlField, self.pasteButton])
-        urlRow.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
-        urlRow.setSpacing_(10.0)
-        urlRow.setTranslatesAutoresizingMaskIntoConstraints_(False)
-
-        # IMPORTANT: add into NSBox *contentView*, not directly to the box
-        urlContent = self.urlContainer.contentView()
-        urlContent.addSubview_(urlRow)
-
-        # The background “pill”
-        self.extractButtonBox.setBoxType_(NSBoxCustom)
-        self.extractButtonBox.setCornerRadius_(8.0)
-        self.extractButtonBox.setBorderWidth_(0.0)
-        self.extractButtonBox.setContentViewMargins_(NSMakeSize(0.0, 0.0))
-        self.extractButtonBox.setFillColor_(NSColor.systemBlueColor())
-        self.extractButtonBox.setTranslatesAutoresizingMaskIntoConstraints_(False)
-
-        # The actual clickable button, borderless, white title
-        self.extractButton.setTitle_("Extract")
-        self.extractButton.setBordered_(False)                     # no bezel; the box is our bezel
-        self.extractButton.setBezelStyle_(NSBezelStyleShadowlessSquare)
-        self.extractButton.setFont_(NSFont.systemFontOfSize_weight_(NSFont.systemFontSize(), NSFontWeightSemibold))
-        self.extractButton.setContentTintColor_(NSColor.whiteColor())  # white text
-        attr = NSMutableAttributedString.alloc().initWithString_("Extract")
-        self.extractButton.setAttributedTitle_(attr)
-
-        # Put the button inside the box’s contentView and center it with padding
-        extractContent = self.extractButtonBox.contentView()
-        # extractContent.addSubview_(self.extractButton)
-        self.extractButton.setTranslatesAutoresizingMaskIntoConstraints_(False)
-
-        # Outer subviews: add the box (not the button) to the root
-        extractContent.addSubview_(self.extractButton)
+        # URL row component (input, paste, extract button)
+        self.urlRow = URLRowView.alloc().initWithTarget_action_(self, "extract:")
+        self.urlRow.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
         # ---- Log text
         self.logText.setEditable_(False)
@@ -492,43 +180,26 @@ class ContentVC(NSViewController):
         logContent.addSubview_(self.logScroll)
 
         # ---- Add outer subviews
-        for sub in (self.urlContainer, self.extractButtonBox, self.statusPill, self.logContainer):
+        for sub in (self.urlRow, self.progressSteps, self.logContainer):
             sub.setTranslatesAutoresizingMaskIntoConstraints_(False)
             root.addSubview_(sub)
 
         # ---- Constraints (outer)
         NSLayoutConstraint.activateConstraints_([
-            # URL container (box)
-            self.urlContainer.leadingAnchor().constraintEqualToAnchor_constant_(root.leadingAnchor(), 24.0),
-            self.urlContainer.topAnchor().constraintEqualToAnchor_constant_(root.topAnchor(), 68.0),
-            self.urlContainer.trailingAnchor().constraintEqualToAnchor_constant_(self.extractButtonBox.leadingAnchor(), -12.0),
-            self.urlContainer.heightAnchor().constraintEqualToConstant_(32.0),
+            self.urlRow.leadingAnchor().constraintEqualToAnchor_constant_(root.leadingAnchor(), 24.0),
+            self.urlRow.topAnchor().constraintEqualToAnchor_constant_(root.topAnchor(), 68.0),
+            self.urlRow.trailingAnchor().constraintEqualToAnchor_constant_(root.trailingAnchor(), -24.0),
+            self.urlRow.heightAnchor().constraintEqualToConstant_(32.0),
 
-            urlRow.leadingAnchor().constraintEqualToAnchor_constant_(urlContent.leadingAnchor(), 10.0),
-            urlRow.trailingAnchor().constraintEqualToAnchor_constant_(urlContent.trailingAnchor(), -10.0),
-            urlRow.centerYAnchor().constraintEqualToAnchor_(urlContent.centerYAnchor()),
-
-            self.extractButtonBox.trailingAnchor().constraintEqualToAnchor_constant_(root.trailingAnchor(), -24.0),
-            self.extractButtonBox.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
-            self.extractButtonBox.heightAnchor().constraintEqualToConstant_(32.0),
-            self.extractButtonBox.widthAnchor().constraintEqualToConstant_(76.0),
-
-            # Extract button
-            self.extractButton.centerXAnchor().constraintEqualToAnchor_(extractContent.centerXAnchor()),
-            self.extractButton.centerYAnchor().constraintEqualToAnchor_(extractContent.centerYAnchor()),
-            self.extractButton.leadingAnchor().constraintGreaterThanOrEqualToAnchor_constant_(extractContent.leadingAnchor(), 8.0),
-            self.extractButton.trailingAnchor().constraintLessThanOrEqualToAnchor_constant_(extractContent.trailingAnchor(), -8.0),
-
-            # Status pill
-            self.statusPill.leadingAnchor().constraintEqualToAnchor_(self.urlContainer.leadingAnchor()),
-            self.statusPill.trailingAnchor().constraintEqualToAnchor_(self.extractButtonBox.trailingAnchor()),
-            self.statusPill.topAnchor().constraintEqualToAnchor_constant_(self.urlContainer.bottomAnchor(), 12.0),
-            self.statusPill.heightAnchor().constraintGreaterThanOrEqualToConstant_(32.0),
+            self.progressSteps.leadingAnchor().constraintEqualToAnchor_(self.urlRow.leadingAnchor()),
+            self.progressSteps.trailingAnchor().constraintEqualToAnchor_(self.urlRow.trailingAnchor()),
+            self.progressSteps.topAnchor().constraintEqualToAnchor_constant_(self.urlRow.bottomAnchor(), 12.0),
+            self.progressSteps.heightAnchor().constraintGreaterThanOrEqualToConstant_(32.0),
 
             # Log container (box)
-            self.logContainer.leadingAnchor().constraintEqualToAnchor_(self.statusPill.leadingAnchor()),
-            self.logContainer.trailingAnchor().constraintEqualToAnchor_(self.statusPill.trailingAnchor()),
-            self.logContainer.topAnchor().constraintEqualToAnchor_constant_(self.statusPill.bottomAnchor(), 12.0),
+            self.logContainer.leadingAnchor().constraintEqualToAnchor_(self.progressSteps.leadingAnchor()),
+            self.logContainer.trailingAnchor().constraintEqualToAnchor_(self.progressSteps.trailingAnchor()),
+            self.logContainer.topAnchor().constraintEqualToAnchor_constant_(self.progressSteps.bottomAnchor(), 12.0),
             self.logContainer.bottomAnchor().constraintEqualToAnchor_constant_(root.bottomAnchor(), -20.0),
 
             self.logScroll.leadingAnchor().constraintEqualToAnchor_(logContent.leadingAnchor()),
@@ -536,12 +207,6 @@ class ContentVC(NSViewController):
             self.logScroll.topAnchor().constraintEqualToAnchor_(logContent.topAnchor()),
             self.logScroll.bottomAnchor().constraintEqualToAnchor_(logContent.bottomAnchor()),
         ])
-
-        # Actions
-        self.pasteButton.setTarget_(self)
-        self.pasteButton.setAction_("pasteURL:")
-        self.extractButton.setTarget_(self)
-        self.extractButton.setAction_("extract:")
 
     def viewDidLayout(self):
         objc.super(ContentVC, self).viewDidLayout()
@@ -551,15 +216,6 @@ class ContentVC(NSViewController):
             self.logText.textContainer().setContainerSize_(NSMakeSize(w, float("inf")))
             self.logText.textContainer().setWidthTracksTextView_(True)
 
-    # pasteURL: action
-    def pasteURL_(self, sender):
-        pb = NSPasteboard.generalPasteboard()
-        s = pb.stringForType_(NSStringPboardType)
-        if not s:
-            NSBeep()
-            return
-        self.urlField.setStringValue_(s)
-
     def _enqueue_log(self, text):
         self.performSelectorOnMainThread_withObject_waitUntilDone_("appendLog:", text, False)
 
@@ -568,7 +224,8 @@ class ContentVC(NSViewController):
         self.logText.scrollRangeToVisible_(NSMakeRange(len(text), 0))
 
     def extract_(self, sender):
-        text = self.urlField.stringValue().strip()
+        self.progressSteps.reset()
+        text = self.urlRow.urlValue().strip()
         if not text:
             NSBeep()
             return
@@ -581,56 +238,71 @@ class ContentVC(NSViewController):
             alert.runModal()
             return
 
-        self.statusPill.setKind_message_(StatusPill.KindProgress, "Downloading")
         self.logger.reset()
         self.logger.info("Extract started.")
         self.setBusy_(True)
         threading.Thread(target=self._download_thread, args=(text,), daemon=True).start()
 
+    def updateProgress_(self, args):
+        status, title, description, icon = args
+        match status:
+            case ProgressStatus.ADD:
+                self.progressSteps.addStep_description_icon_(title, description, icon)
+            case ProgressStatus.BEGIN:
+                self.progressSteps.beginCurrentStep_description_icon_(title, description, None)
+            case ProgressStatus.UPDATE:
+                self.progressSteps.updateCurrentStep_description_(title, description)
+            case ProgressStatus.SUCCESS:
+                self.progressSteps.finishCurrentStepSuccess_description_(title, description)
+            case ProgressStatus.ERROR:
+                self.progressSteps.finishCurrentStepError_description_(title, description)
+
     def _download_thread(self, url):
         try:
             normalization = self.userDefaults.getNormalization()
-            self.logger.info(f"Using normalization: {normalization}")
+            normalization_text = f"Using normalization: {normalization}"
+            self.logger.info(normalization_text)
+            self.performSelectorOnMainThread_withObject_waitUntilDone_("updateProgress:", (ProgressStatus.ADD, "Normalization", normalization_text, "gearshape"), False)
 
+            self.performSelectorOnMainThread_withObject_waitUntilDone_("updateProgress:", (ProgressStatus.BEGIN, "Downloading", "Starting Download...", None), False)
             path = self.downloader.download(url, normalization=normalization)
             self.logger.info(f"Download finished successfully: {path}")
+            self.performSelectorOnMainThread_withObject_waitUntilDone_("updateProgress:", (ProgressStatus.SUCCESS, "Download Completed", "Size: " + human_size(os.path.getsize(path)), None), False)
             send_notification("Download Completed", os.path.basename(path))
 
             self.performSelectorOnMainThread_withObject_waitUntilDone_("finishExtract:", path, True)
 
         except Exception as e:
             self.logger.error(f"Download failed: {e}")
-            self.statusPill.setKind_message_(StatusPill.KindError, "Failed")
+            self.performSelectorOnMainThread_withObject_waitUntilDone_("updateProgress:", (ProgressStatus.ERROR, "Download Failed", e, None), False)
         finally:
             self.performSelectorOnMainThread_withObject_waitUntilDone_("setBusy:", False, False)
 
     def finishExtract_(self, src_path):
         try:
-            self.statusPill.setKind_message_(StatusPill.KindProgress, "Saving File")
+            self.progressSteps.beginCurrentStep_description_icon_("Saving File", "Choose where to save...")
             file = self.presentSavePanelForPath_(src_path)
             
             if file is None:
                 self.logger.warning("Save cancelled by user.")
-                self.statusPill.setKind_message_(StatusPill.KindError, "User Cancelled")
+                self.progressSteps.finishCurrentStepError_description_("Save Failed", "Cancelled by user.")
                 return
 
             self.addToSidebar_({
                 "file": os.path.basename(file),
-                "url": self.urlField.stringValue().strip()
+                "url": self.urlRow.urlValue().strip()
             })
-            self.statusPill.setKind_message_(StatusPill.KindSuccess, "Success")
+            self.progressSteps.finishCurrentStepSuccess_description_("Save File Completed", "File: " + os.path.basename(file))
         except Exception as e:
             self.logger.error(f"Save failed: {e}")
-            self.statusPill.setKind_message_(StatusPill.KindError, "Failed")
+            self.progressSteps.finishCurrentStepError_description_("Save Failed", e)
         finally:
             self.setBusy_(False)
 
     def setBusy_(self, is_busy):
-        self.extractButton.setEnabled_(not is_busy)
-        self.pasteButton.setEnabled_(not is_busy)
-        self.urlField.setEnabled_(not is_busy)
+        self.urlRow.setEnabled_(not is_busy)
         if not is_busy:
-            self.urlField.setStringValue_("")
+            self.urlRow.clearURL()
 
     def presentSavePanelForPath_(self, src_path):
         save_path = self.openSavePanel_(src_path)
