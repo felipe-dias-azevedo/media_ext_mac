@@ -6,7 +6,7 @@ PY
 )"
 echo "ffmpeg at: $FFMPEG_BIN"
 mkdir -p Resources
-cp "$FFMPEG_BIN" Resources/ffmpeg
+mv "$FFMPEG_BIN" Resources/ffmpeg
 chmod +x Resources/ffmpeg
 
 pyinstaller --name MediaExt \
