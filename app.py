@@ -415,12 +415,6 @@ class AppDelegate(NSObject):
 
 
 def main():
-    bundle = NSBundle.mainBundle()
-    if bundle and bundle.resourcePath():
-        bundled_ffmpeg = os.path.join(bundle.resourcePath(), "ffmpeg")
-        if os.path.exists(bundled_ffmpeg):
-            os.environ["IMAGEIO_FFMPEG_EXE"] = bundled_ffmpeg
-
     app = NSApplication.sharedApplication()
     delegate = AppDelegate.alloc().init()
     app.setDelegate_(delegate)
