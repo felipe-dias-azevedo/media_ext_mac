@@ -32,7 +32,7 @@ class LogViewer(NSView):
         self.logText.setSelectable_(True)
         self.logText.setRichText_(False)
         self.logText.setLayoutOrientation_(NSTextLayoutOrientationHorizontal)
-        self.logText.setFont_(NSFont.userFixedPitchFontOfSize_(13.0))
+        self.logText.setFont_(NSFont.userFixedPitchFontOfSize_(NSFont.smallSystemFontSize()))
         self.logText.setTextColor_(NSColor.labelColor())
         self.logText.setDrawsBackground_(False)
         self.logText.setTextContainerInset_(NSMakeSize(10.0, 10.0))

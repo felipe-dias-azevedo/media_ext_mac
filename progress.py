@@ -120,7 +120,7 @@ class StepRowView(NSView):
         self.titleLabel = NSTextField.labelWithString_("")
         self.titleLabel.setFont_(
             NSFont.systemFontOfSize_weight_(
-                13,
+                NSFont.systemFontSize(),
                 NSFontWeightSemibold,
             )
         )
@@ -128,7 +128,7 @@ class StepRowView(NSView):
 
         self.descriptionLabel = NSTextField.labelWithString_("")
         self.descriptionLabel.setFont_(
-            NSFont.systemFontOfSize_(11)
+            NSFont.systemFontOfSize_(NSFont.smallSystemFontSize())
         )
         self.descriptionLabel.setTextColor_(
             NSColor.secondaryLabelColor()

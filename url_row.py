@@ -31,7 +31,7 @@ class URLRowView(NSView):
         self.urlContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
         self.urlInlineLabel = NSTextField.labelWithString_("URL")
-        self.urlInlineLabel.setFont_(NSFont.systemFontOfSize_(12.0))
+        self.urlInlineLabel.setFont_(NSFont.systemFontOfSize_(NSFont.systemFontSize()))
         self.urlInlineLabel.setTextColor_(NSColor.labelColor())
 
         self.urlField = NSTextField.alloc().init()

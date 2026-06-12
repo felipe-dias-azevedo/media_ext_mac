@@ -120,12 +120,12 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
             return v
         else:
             title = NSTextField.labelWithString_(item.title)
-            title.setFont_(NSFont.systemFontOfSize_(12.0))
+            title.setFont_(NSFont.systemFontOfSize_(NSFont.systemFontSize()))
             title.setLineBreakMode_(NSLineBreakByTruncatingMiddle)
             # TODO: add tooltip to title label
 
             sub = NSTextField.labelWithString_(item.timestamp)
-            sub.setFont_(NSFont.systemFontOfSize_(10.0))
+            sub.setFont_(NSFont.systemFontOfSize_(NSFont.smallSystemFontSize()))
             sub.setTextColor_(NSColor.secondaryLabelColor())
 
             v.addSubview_(title)
