@@ -51,25 +51,35 @@ from url_row import URLRowView
 from sidebar import SidebarVC
 from log_viewer import LogViewer
 from enum import Enum
-from re import compile
 
+class Progresser:
+    def __init__(self, handler):
+        self.handler = handler
+        self.downloading = False
+        self.postprocessing = False
 
-PERCENT_RE = compile(r'\d+(?:\.\d+)?%')
+    def download(self, msg):
+        self.downloading = True
+        self.handler((ProgressStatus.UPDATE, "Downloading", msg, None))
+    
+    def finish_download(self, msg):
+        self.downloading = False
+        self.handler((ProgressStatus.SUCCESS, "Download Completed", msg, None))
+
+    def postprocess(self, msg):
+        self.postprocessing = True
+        self.handler((ProgressStatus.BEGIN, "Post Processing", msg, None))
+
+    def finish_postprocess(self, msg):
+        self.postprocessing = False
+        self.handler((ProgressStatus.SUCCESS, "Post Processing Completed", msg, None))
 
 class DownloaderLogger:
-    def __init__(self, handler, progress_handler=None):
+    def __init__(self, handler):
         self.content = ""
         self.handler = handler
-        self.progress_handler = progress_handler
 
     def output(self, text):
-        if "[download]" in text:
-            match = PERCENT_RE.search(text)
-            if match and "100" in match[0]:
-                self.progress_handler((ProgressStatus.UPDATE, "Downloading", match[0] + " - Converting file...", None))
-            elif match:
-                self.progress_handler((ProgressStatus.UPDATE, "Downloading", match[0], None))
-        
         self.content += text + "\n"
 
         if "--dev" in argv:
@@ -99,12 +109,6 @@ class ProgressStatus(Enum):
     SUCCESS = 3
     ERROR = 4
 
-def human_size(num_bytes):
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if num_bytes < 1000:
-            return f"{num_bytes:.1f} {unit}"
-        num_bytes /= 1000
-
 
 # -----------------------------
 # Content VC (right side)
@@ -126,9 +130,10 @@ class ContentVC(NSViewController):
         self.logViewer.setHidden_(True)
 
         # Logger / worker
-        self.logger = DownloaderLogger(self._enqueue_log, self.updateProgress_)
+        self.logger = DownloaderLogger(self._enqueue_log)
+        self.progresser = Progresser(self._enqueue_progress)
         self.userDefaults = UserDefaults()
-        self.downloader = Downloader(self.logger)
+        self.downloader = Downloader(self.logger, self.progresser)
 
         return self
 
@@ -200,6 +205,9 @@ class ContentVC(NSViewController):
         self.setBusy_(True)
         threading.Thread(target=self._download_thread, args=(text,), daemon=True).start()
 
+    def _enqueue_progress(self, args):
+        self.performSelectorOnMainThread_withObject_waitUntilDone_("updateProgress:", args, False)
+
     def updateProgress_(self, args):
         status, title, description, icon = args
         match status:
@@ -224,14 +232,13 @@ class ContentVC(NSViewController):
             self.performSelectorOnMainThread_withObject_waitUntilDone_("updateProgress:", (ProgressStatus.BEGIN, "Downloading", "Starting Download...", None), False)
             path = self.downloader.download(url, normalization=normalization)
             self.logger.info(f"Download finished successfully: {path}")
-            self.performSelectorOnMainThread_withObject_waitUntilDone_("updateProgress:", (ProgressStatus.SUCCESS, "Download Completed", "Size: " + human_size(os.path.getsize(path)), None), False)
             send_notification("Download Completed", os.path.basename(path))
 
             self.performSelectorOnMainThread_withObject_waitUntilDone_("finishExtract:", path, True)
 
         except Exception as e:
-            self.logger.error(f"Download failed: {e}")
-            self.performSelectorOnMainThread_withObject_waitUntilDone_("updateProgress:", (ProgressStatus.ERROR, "Download Failed", e, None), False)
+            self.logger.error(f"Error: {e}")
+            self.performSelectorOnMainThread_withObject_waitUntilDone_("updateProgress:", (ProgressStatus.ERROR, "Error", e, None), False)
         finally:
             self.performSelectorOnMainThread_withObject_waitUntilDone_("setBusy:", False, False)
 
