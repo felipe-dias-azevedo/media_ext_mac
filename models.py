@@ -3,19 +3,20 @@ from datetime import datetime
 from typing import Dict, Iterable, List
 
 class MediaItem(object):
-    __slots__ = ("title", "timestamp", "isGroup")
-    def __init__(self, title="", timestamp="", isGroup=False):
+    __slots__ = ("title", "url", "timestamp", "isGroup")
+    def __init__(self, title="", url="", timestamp="", isGroup=False):
         self.title = title
+        self.url = url
         self.timestamp = timestamp
         self.isGroup = isGroup
 
     @classmethod
     def group(cls, groupTitle):
-        return cls(title=groupTitle, timestamp="", isGroup=True)
+        return cls(title=groupTitle, timestamp="", url="", isGroup=True)
 
     @classmethod
-    def item(cls, title, timestamp):
-        return cls(title=title, timestamp=timestamp, isGroup=False)
+    def item(cls, title, url, timestamp):
+        return cls(title=title, url=url, timestamp=timestamp, isGroup=False)
     
 class HistoryFormatter:
 
@@ -44,8 +45,10 @@ class HistoryFormatter:
             for label, (lo, hi) in self._GROUPS:
                 if lo <= age < hi:
                     buckets[label].append(
-                        MediaItem.item(r["file"], 
-                        datetime.fromtimestamp(ts).strftime("%d/%m/%y, %H:%M:%S"))) # TODO: show user local time format
+                        MediaItem.item(
+                            r["file"], 
+                            r["url"],
+                            datetime.fromtimestamp(ts).strftime("%d/%m/%y, %H:%M:%S"))) # TODO: show user local time format
                     break
 
         out: List[MediaItem] = []

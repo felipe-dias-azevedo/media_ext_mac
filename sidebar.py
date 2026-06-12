@@ -1,11 +1,13 @@
 import objc
 from Cocoa import (
+    NSMenu, NSMenuItem,
     NSView, NSViewController, NSScrollView, NSTableView, NSTableCellView, NSTableColumn,
     NSVisualEffectView, NSColor, NSFont, NSTextField,
+    NSPasteboard, NSStringPboardType,
     NSLayoutConstraint, NSMakeRect, NSMakeSize,
-    NSTableViewStyleInset, NSVisualEffectMaterialSidebar,
+    NSTableViewStyleSourceList, NSVisualEffectMaterialSidebar,
     NSVisualEffectBlendingModeBehindWindow, NSVisualEffectStateActive,
-    NSTableViewAnimationSlideDown, NSTableViewAnimationEffectFade, NSLineBreakByTruncatingMiddle
+    NSTableViewAnimationSlideDown, NSTableViewAnimationEffectFade, NSLineBreakByTruncatingTail,
 )
 from Foundation import NSMutableIndexSet
 from sys import argv
@@ -15,18 +17,33 @@ from db_path import db_path
 from models import MediaItem, HistoryFormatter
 
 
+class SidebarTableView(NSTableView):
+    def menuForEvent_(self, event):
+        point = self.convertPoint_fromView_(event.locationInWindow(), None)
+        row = self.rowAtPoint_(point)
+        if row == -1:
+            return None
+
+        delegate = self.delegate()
+        if delegate and hasattr(delegate, 'tableView_menuForEvent_'):
+            return delegate.tableView_menuForEvent_(self, event)
+        return None
+
+
 class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewDataSource"),
                                              objc.protocolNamed("NSTableViewDelegate")]):
     def init(self):
         self = objc.super(SidebarVC, self).init()
         if self is None:
             return None
-        self.table = NSTableView.alloc().init()
+        self.table = SidebarTableView.alloc().init()
         self.scroll = NSScrollView.alloc().init()
         self.visualEffect = NSVisualEffectView.alloc().init()
 
         self.db = MediaDB(db_path=db_path(DB_FILENAME, dev_env="--dev" in argv))
         self.data = []
+        self._contextMenuRow = None
+        self._contextMenuActionPerformed = False
 
         # center = NSNotificationCenter.defaultCenter()
         # center.addObserver_selector_name_object_(
@@ -59,7 +76,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         self.table.setHeaderView_(None)
         self.table.setRowHeight_(48.0)
         self.table.setIntercellSpacing_(NSMakeSize(0.0, 0.0))
-        self.table.setStyle_(NSTableViewStyleInset)
+        self.table.setStyle_(NSTableViewStyleSourceList)
 
         # Add column
         col = NSTableColumn.alloc().initWithIdentifier_("main")
@@ -101,28 +118,47 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         return bool(self.data[row].isGroup)
 
     def tableView_shouldSelectRow_(self, tableView, row):
-        return self.data[row].isGroup == False
+        # return self.data[row].isGroup == False
+        return False
 
     # Views per row
     def tableView_viewForTableColumn_row_(self, tableView, tableColumn, row):
         item = self.data[row]
         v = NSTableCellView.alloc().init()
         if item.isGroup:
+            effectView = NSVisualEffectView.alloc().init()
+            effectView.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
+            effectView.setMaterial_(NSVisualEffectMaterialSidebar)
+            effectView.setState_(NSVisualEffectStateActive)
+            effectView.setWantsLayer_(True)
+            effectView.setTranslatesAutoresizingMaskIntoConstraints_(False)
+
             label = NSTextField.labelWithString_(item.title)
             label.setFont_(NSFont.boldSystemFontOfSize_(NSFont.systemFontSize()))
             label.setTextColor_(NSColor.secondaryLabelColor())
-            v.addSubview_(label)
+            label.setDrawsBackground_(False)
+            label.setBezeled_(False)
             label.setTranslatesAutoresizingMaskIntoConstraints_(False)
+
+            effectView.addSubview_(label)
+            v.addSubview_(effectView)
+            
             NSLayoutConstraint.activateConstraints_([
-                label.leadingAnchor().constraintEqualToAnchor_constant_(v.leadingAnchor(), 12.0),
-                label.centerYAnchor().constraintEqualToAnchor_(v.centerYAnchor())
+                effectView.leadingAnchor().constraintEqualToAnchor_constant_(v.leadingAnchor(), 12),
+                effectView.trailingAnchor().constraintEqualToAnchor_constant_(v.trailingAnchor(), -12),
+                effectView.topAnchor().constraintEqualToAnchor_(v.topAnchor()),
+                effectView.heightAnchor().constraintEqualToConstant_(44),
+
+                label.leadingAnchor().constraintEqualToAnchor_constant_(effectView.leadingAnchor(), 10),
+                label.trailingAnchor().constraintLessThanOrEqualToAnchor_constant_(effectView.trailingAnchor(), -10),
+                label.centerYAnchor().constraintEqualToAnchor_(v.centerYAnchor()),
             ])
             return v
         else:
             title = NSTextField.labelWithString_(item.title)
             title.setFont_(NSFont.systemFontOfSize_(NSFont.systemFontSize()))
-            title.setLineBreakMode_(NSLineBreakByTruncatingMiddle)
-            # TODO: add tooltip to title label
+            title.setLineBreakMode_(NSLineBreakByTruncatingTail)
+            title.setToolTip_(item.title)
 
             sub = NSTextField.labelWithString_(item.timestamp)
             sub.setFont_(NSFont.systemFontOfSize_(NSFont.smallSystemFontSize()))
@@ -142,7 +178,63 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
                 sub.bottomAnchor().constraintEqualToAnchor_constant_(v.bottomAnchor(), -6.0),
             ])
             return v
-        
+
+    def tableView_menuForEvent_(self, tableView, event):
+        point = tableView.convertPoint_fromView_(event.locationInWindow(), None)
+        row = tableView.rowAtPoint_(point)
+        if row == -1 or self.data[row].isGroup:
+            return None
+
+        idxs = NSMutableIndexSet.indexSet()
+        idxs.addIndex_(row)
+        tableView.selectRowIndexes_byExtendingSelection_(idxs, False)
+
+        self._contextMenuRow = row
+        self._contextMenuActionPerformed = False
+
+        menu = NSMenu.alloc().initWithTitle_("")
+        menu.setDelegate_(self)
+
+        copy_title_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Copy File Name", "copyTitle:", "")
+        copy_title_item.setTarget_(self)
+        copy_title_item.setRepresentedObject_(row)
+        menu.addItem_(copy_title_item)
+
+        copy_url_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Copy URL", "copyURL:", "")
+        copy_url_item.setTarget_(self)
+        copy_url_item.setRepresentedObject_(row)
+        menu.addItem_(copy_url_item)
+
+        return menu
+
+    def copyTitle_(self, sender):
+        self._contextMenuActionPerformed = True
+        row = sender.representedObject()
+        if row is None or row == -1:
+            return
+
+        title = self.data[row].title
+        pasteboard = NSPasteboard.generalPasteboard()
+        pasteboard.clearContents()
+        pasteboard.setString_forType_(title, NSStringPboardType)
+
+    def copyURL_(self, sender):
+        self._contextMenuActionPerformed = True
+        row = sender.representedObject()
+        if row is None or row == -1:
+            return
+
+        url = self.data[row].url
+        pasteboard = NSPasteboard.generalPasteboard()
+        pasteboard.clearContents()
+        pasteboard.setString_forType_(url, "public.utf8-plain-text")
+
+    def menuDidClose_(self, menu):
+        if not self._contextMenuActionPerformed:
+            self.table.deselectAll_(None)
+        self._contextMenuRow = None
+        self._contextMenuActionPerformed = False
+
     def addRow_(self, obj):
         if obj is None:
             return
