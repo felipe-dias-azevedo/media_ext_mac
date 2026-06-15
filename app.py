@@ -254,7 +254,8 @@ class ContentVC(NSViewController):
 
             self.addToSidebar_({
                 "file": os.path.basename(file),
-                "url": self.urlRow.urlValue().strip()
+                "url": self.urlRow.urlValue().strip(),
+                "path": file,
             })
             self.progressSteps.finishCurrentStepSuccess_description_("Save File Completed", "File: " + os.path.basename(file))
         except Exception as e:

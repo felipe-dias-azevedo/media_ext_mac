@@ -247,7 +247,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         else:
             addGroup = True
 
-        items = [MediaItem.item(obj["file"], datetime.now().strftime("%y/%m/%d, %H:%M:%S"))]
+        items = [MediaItem.item(obj["file"], obj["url"], datetime.now().strftime("%y/%m/%d, %H:%M:%S"))]
         if (addGroup):
             items.insert(0, MediaItem.group("Just now"))
 
