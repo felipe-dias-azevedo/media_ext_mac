@@ -10,7 +10,7 @@ from Cocoa import (
     NSTableViewAnimationSlideDown, NSTableViewAnimationEffectFade, NSLineBreakByTruncatingTail,
     NSFontWeightMedium, NSFontWeightBold,
 )
-from Foundation import NSMutableIndexSet
+from Foundation import NSMutableIndexSet, NSThread, NSDateFormatter, NSDate
 from sys import argv
 from datetime import datetime
 from database import MediaDB, DB_FILENAME
@@ -47,6 +47,10 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         self.data = []
         self._contextMenuRow = None
         self._contextMenuActionPerformed = False
+
+        self.formatter = NSDateFormatter.alloc().init()
+        self.formatter.setDateStyle_(1)   # medium style
+        self.formatter.setTimeStyle_(1)
 
         # center = NSNotificationCenter.defaultCenter()
         # center.addObserver_selector_name_object_(
@@ -164,7 +168,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
             title.setLineBreakMode_(NSLineBreakByTruncatingTail)
             title.setToolTip_(item.title)
 
-            sub = NSTextField.labelWithString_(item.timestamp)
+            sub = NSTextField.labelWithString_(self._formatDate_(item.timestamp))
             sub.setFont_(NSFont.systemFontOfSize_(NSFont.smallSystemFontSize()))
             sub.setLineBreakMode_(NSLineBreakByTruncatingTail)
             sub.setTextColor_(NSColor.secondaryLabelColor())
@@ -211,6 +215,8 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         copy_url_item.setRepresentedObject_(row)
         menu.addItem_(copy_url_item)
 
+        # TODO: add item to open the file path in finder (open file location)
+
         return menu
 
     def copyTitle_(self, sender):
@@ -241,8 +247,8 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         self._contextMenuRow = None
         self._contextMenuActionPerformed = False
 
-    def addRow_(self, obj):
-        if obj is None:
+    def addRowToSidebar_(self, media_item):
+        if media_item is None:
             return
         
         idxs = NSMutableIndexSet.indexSet()
@@ -253,7 +259,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         else:
             addGroup = True
 
-        items = [MediaItem.item(obj["file"], obj["url"], datetime.now().strftime("%y/%m/%d, %H:%M:%S"))]
+        items = [media_item]
         if (addGroup):
             items.insert(0, MediaItem.group("Just now"))
 
@@ -274,14 +280,21 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
 
         self.table.scrollRowToVisible_(0)
 
-        self.performSelectorOnMainThread_withObject_waitUntilDone_("addHistoryData:", obj, False)
+        self.addHistoryData_(media_item)
 
     def getHistoryData_(self, sender=None):
         self.data = HistoryFormatter().format(self.db.select_history())
         self.table.reloadData()
 
-    def addHistoryData_(self, obj):
-        self.db.insert_history(obj["file"], obj["url"])
+    def addHistoryData_(self, media_item):
+        self.db.insert_history(media_item)
+
+    def _formatDate_(self, timestamp):
+        nsdate = NSDate.dateWithTimeIntervalSince1970_(timestamp)
+
+        formatted = self.formatter.stringFromDate_(nsdate)
+
+        return formatted
 
     def _appWillTerminate_(self, note):
         self.db.close()

@@ -29,7 +29,8 @@ from AppKit import (
     NSUserInterfaceLayoutOrientationHorizontal,
     NSUserInterfaceLayoutOrientationVertical,
     NSView,
-    NSBoxCustom
+    NSBoxCustom,
+    NSLineBreakByTruncatingTail
 )
 
 
@@ -105,6 +106,8 @@ class CurrentStepSeparator(NSView):
 
 class StepRowView(NSView):
 
+    # TODO: add an optional button on the right side with custom lambda functionality
+
     def init(self):
         self = objc.super(StepRowView, self).init()
         if self is None:
@@ -134,6 +137,7 @@ class StepRowView(NSView):
             NSColor.secondaryLabelColor()
         )
         self.descriptionLabel.setAlignment_(NSLeftTextAlignment)
+        self.descriptionLabel.setLineBreakMode_(NSLineBreakByTruncatingTail)
 
         self.textStack = NSStackView.stackViewWithViews_([
             self.titleLabel,

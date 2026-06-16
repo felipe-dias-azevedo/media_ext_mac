@@ -3,8 +3,9 @@ from datetime import datetime
 from typing import Dict, Iterable, List
 
 class MediaItem(object):
-    __slots__ = ("title", "url", "timestamp", "isGroup")
-    def __init__(self, title="", url="", timestamp="", isGroup=False):
+    __slots__ = ("path", "title", "url", "timestamp", "isGroup")
+    def __init__(self, path="", title="", url="", timestamp="", isGroup=False):
+        self.path = path
         self.title = title
         self.url = url
         self.timestamp = timestamp
@@ -12,11 +13,11 @@ class MediaItem(object):
 
     @classmethod
     def group(cls, groupTitle):
-        return cls(title=groupTitle, timestamp="", url="", isGroup=True)
+        return cls(path="", title=groupTitle, timestamp="", url="", isGroup=True)
 
     @classmethod
-    def item(cls, title, url, timestamp):
-        return cls(title=title, url=url, timestamp=timestamp, isGroup=False)
+    def item(cls, path, title, url, timestamp):
+        return cls(path=path, title=title, url=url, timestamp=timestamp, isGroup=False)
     
 class HistoryFormatter:
 
@@ -41,14 +42,16 @@ class HistoryFormatter:
 
         for r in rows:
             ts = int(r["ts"])
+            print(r)
             age = max(0, self._now - ts)  # guard against clock skew
             for label, (lo, hi) in self._GROUPS:
                 if lo <= age < hi:
                     buckets[label].append(
                         MediaItem.item(
-                            r["file"], 
-                            r["url"],
-                            datetime.fromtimestamp(ts).strftime("%d/%m/%y, %H:%M:%S"))) # TODO: show user local time format
+                            path=r["path"], 
+                            title=r["file"], 
+                            url=r["url"],
+                            timestamp=ts))
                     break
 
         out: List[MediaItem] = []

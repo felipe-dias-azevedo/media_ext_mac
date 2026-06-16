@@ -252,12 +252,14 @@ class ContentVC(NSViewController):
                 self.progressSteps.finishCurrentStepError_description_("Save Failed", "Cancelled by user.")
                 return
 
-            self.addToSidebar_({
-                "file": os.path.basename(file),
-                "url": self.urlRow.urlValue().strip(),
-                "path": file,
-            })
+            media_item = MediaItem.item(
+                path=file,
+                title=os.path.basename(file), 
+                url=self.urlRow.urlValue().strip(), 
+                timestamp=datetime.now().timestamp(),
+            )
             self.progressSteps.finishCurrentStepSuccess_description_("Save File Completed", "File: " + os.path.basename(file))
+            self.sidebarVC.addRowToSidebar_(media_item)
         except Exception as e:
             self.logger.error(f"Save failed: {e}")
             self.progressSteps.finishCurrentStepError_description_("Save Failed", e)
@@ -293,9 +295,6 @@ class ContentVC(NSViewController):
         except Exception as e:
             self.logger.error(f"Error showing save dialog: {e}")
             return None
-
-    def addToSidebar_(self, newMediaItem):
-        self.sidebarVC.performSelectorOnMainThread_withObject_waitUntilDone_("addRow:", newMediaItem, True)
 
 
 # -----------------------------

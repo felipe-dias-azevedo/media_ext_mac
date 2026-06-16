@@ -30,6 +30,7 @@ class MediaDB:
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS history (
                 id   INTEGER PRIMARY KEY AUTOINCREMENT,
+                path TEXT    NOT NULL,
                 file TEXT    NOT NULL,
                 url  TEXT    NOT NULL,
                 ts   INTEGER NOT NULL
@@ -52,17 +53,15 @@ class MediaDB:
             self.conn = None
 
     # --- API dedicated to the `history` table ---
-    def insert_history(self, file: str, url: str, ts: Optional[int] = None) -> int:
+    def insert_history(self, media_item) -> int:
         """
-        Insert one history row. If `ts` is None, uses current Unix epoch seconds.
+        Insert one history row.
         Returns the inserted row id.
         """
-        if ts is None:
-            ts = int(time.time())
 
         cur = self.conn.execute(
-            "INSERT INTO history (file, url, ts) VALUES (?, ?, ?)",
-            (file, url, int(ts)),
+            "INSERT INTO history (path, file, url, ts) VALUES (?, ?, ?, ?)",
+            (media_item.path, media_item.title, media_item.url, int(media_item.timestamp)),
         )
         self.conn.commit()
         return int(cur.lastrowid or 0)
@@ -70,15 +69,17 @@ class MediaDB:
     def select_history(self, newest_first: bool = True) -> List[Dict[str, Any]]:
         
         order = "DESC" if newest_first else "ASC"
-        sql = f"SELECT id, file, url, ts FROM history ORDER BY ts {order}"
+        sql = f"SELECT id, path, file, url, ts FROM history ORDER BY ts {order}"
         rows = self.conn.execute(sql).fetchall()
         return [dict(r) for r in rows]
 
 
 # --- Example usage ---
 if __name__ == "__main__":
+    from models import MediaItem
     db = MediaDB()
-    new_id = db.insert_history(file="example.mp4", url="https://example.com/video")
+    media_item = MediaItem.item(path="/path/to/video.mp4", title="example.mp4", url="https://example.com/video", timestamp=int(time.time()))
+    new_id = db.insert_history(media_item)
     print("Inserted id:", new_id)
 
     all_rows = db.select_history()
