@@ -8,6 +8,7 @@ from Cocoa import (
     NSTableViewStyleSourceList, NSVisualEffectMaterialSidebar,
     NSVisualEffectBlendingModeBehindWindow, NSVisualEffectStateActive,
     NSTableViewAnimationSlideDown, NSTableViewAnimationEffectFade, NSLineBreakByTruncatingTail,
+    NSFontWeightMedium, NSFontWeightBold,
 )
 from Foundation import NSMutableIndexSet
 from sys import argv
@@ -29,6 +30,8 @@ class SidebarTableView(NSTableView):
             return delegate.tableView_menuForEvent_(self, event)
         return None
 
+
+# TODO: Add search/filter functionality, e.g. a search field at the top of the sidebar that filters the history items in real time as the user types. This would be especially useful as the history grows over time.
 
 class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewDataSource"),
                                              objc.protocolNamed("NSTableViewDelegate")]):
@@ -74,7 +77,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         
         # Configure table
         self.table.setHeaderView_(None)
-        self.table.setRowHeight_(48.0)
+        self.table.setRowHeight_(44.0)
         self.table.setIntercellSpacing_(NSMakeSize(0.0, 0.0))
         self.table.setStyle_(NSTableViewStyleSourceList)
 
@@ -125,6 +128,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
     def tableView_viewForTableColumn_row_(self, tableView, tableColumn, row):
         item = self.data[row]
         v = NSTableCellView.alloc().init()
+
         if item.isGroup:
             effectView = NSVisualEffectView.alloc().init()
             effectView.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
@@ -134,8 +138,8 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
             effectView.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
             label = NSTextField.labelWithString_(item.title)
-            label.setFont_(NSFont.boldSystemFontOfSize_(NSFont.systemFontSize()))
-            label.setTextColor_(NSColor.secondaryLabelColor())
+            label.setFont_(NSFont.systemFontOfSize_weight_(NSFont.systemFontSize(), NSFontWeightBold))
+            label.setTextColor_(NSColor.tertiaryLabelColor())
             label.setDrawsBackground_(False)
             label.setBezeled_(False)
             label.setTranslatesAutoresizingMaskIntoConstraints_(False)
@@ -144,24 +148,25 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
             v.addSubview_(effectView)
             
             NSLayoutConstraint.activateConstraints_([
-                effectView.leadingAnchor().constraintEqualToAnchor_constant_(v.leadingAnchor(), 12),
-                effectView.trailingAnchor().constraintEqualToAnchor_constant_(v.trailingAnchor(), -12),
+                effectView.leadingAnchor().constraintEqualToAnchor_(v.leadingAnchor()),
+                effectView.trailingAnchor().constraintEqualToAnchor_(v.trailingAnchor()),
                 effectView.topAnchor().constraintEqualToAnchor_(v.topAnchor()),
                 effectView.heightAnchor().constraintEqualToConstant_(44),
 
-                label.leadingAnchor().constraintEqualToAnchor_constant_(effectView.leadingAnchor(), 10),
+                label.leadingAnchor().constraintEqualToAnchor_constant_(effectView.leadingAnchor(), 18),
                 label.trailingAnchor().constraintLessThanOrEqualToAnchor_constant_(effectView.trailingAnchor(), -10),
                 label.centerYAnchor().constraintEqualToAnchor_(v.centerYAnchor()),
             ])
             return v
         else:
             title = NSTextField.labelWithString_(item.title)
-            title.setFont_(NSFont.systemFontOfSize_(NSFont.systemFontSize()))
+            title.setFont_(NSFont.systemFontOfSize_weight_(NSFont.systemFontSize(), NSFontWeightMedium))
             title.setLineBreakMode_(NSLineBreakByTruncatingTail)
             title.setToolTip_(item.title)
 
             sub = NSTextField.labelWithString_(item.timestamp)
             sub.setFont_(NSFont.systemFontOfSize_(NSFont.smallSystemFontSize()))
+            sub.setLineBreakMode_(NSLineBreakByTruncatingTail)
             sub.setTextColor_(NSColor.secondaryLabelColor())
 
             v.addSubview_(title)
@@ -169,9 +174,10 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
             title.setTranslatesAutoresizingMaskIntoConstraints_(False)
             sub.setTranslatesAutoresizingMaskIntoConstraints_(False)
             NSLayoutConstraint.activateConstraints_([
-                title.leadingAnchor().constraintEqualToAnchor_constant_(v.leadingAnchor(), 12.0),
-                title.trailingAnchor().constraintEqualToAnchor_constant_(v.trailingAnchor(), -12.0),
+                title.leadingAnchor().constraintEqualToAnchor_constant_(v.leadingAnchor(), 2.0),
+                title.trailingAnchor().constraintEqualToAnchor_constant_(v.trailingAnchor(), -2.0),
                 title.topAnchor().constraintEqualToAnchor_constant_(v.topAnchor(), 6.0),
+
                 sub.leadingAnchor().constraintEqualToAnchor_(title.leadingAnchor()),
                 sub.trailingAnchor().constraintEqualToAnchor_(title.trailingAnchor()),
                 sub.topAnchor().constraintEqualToAnchor_constant_(title.bottomAnchor(), 0.0),
