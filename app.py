@@ -1,7 +1,7 @@
 from Cocoa import (
     NSObject, NSApplication, NSApp, NSWindow,
     NSView, NSViewController, NSScrollView, NSTextView, NSTextField, NSTableCellView,
-    NSButton, NSImage, NSBox, NSStackView, NSProgressIndicator,
+    NSButton, NSBox, NSStackView, NSProgressIndicator,
     NSSplitViewController, NSSplitViewItem, NSToolbar, NSImageView,
     NSWindowStyleMaskTitled, NSWindowStyleMaskClosable, NSTableViewStyleInset,
     NSWindowStyleMaskMiniaturizable, NSWindowStyleMaskResizable, NSBackingStoreBuffered,
@@ -17,10 +17,10 @@ from Cocoa import (
     NSToolbarDisplayModeIconOnly, NSToolbarToggleSidebarItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier,
     NSToolbarItem, NSWindowTabbingModeDisallowed, NSWindowStyleMaskFullSizeContentView, NSWindowToolbarStyleUnified,
     NSTableViewAnimationSlideUp, NSTableViewAnimationSlideDown, NSTableViewAnimationEffectFade,
-    NSUserDefaults, NSToolbarItemVisibilityPriorityHigh
+    NSUserDefaults
 )
 from AppKit import (
-    NSTableView, NSTableColumn, NSImageSymbolConfiguration, NSBeep
+    NSTableView, NSTableColumn, NSBeep
 )
 from UserNotifications import (
     UNUserNotificationCenter,
@@ -49,7 +49,7 @@ from menu import buildMenus
 from settings import SettingsWindowController
 from url_row import URLRowView
 from sidebar import SidebarVC
-from log_viewer import LogViewer
+from log_window_controller import LogWindowController
 from enum import Enum
 
 class Progresser:
@@ -73,34 +73,6 @@ class Progresser:
     def finish_postprocess(self, msg):
         self.postprocessing = False
         self.handler((ProgressStatus.SUCCESS, "Post Processing Completed", msg, None))
-
-class DownloaderLogger:
-    def __init__(self, handler):
-        self.content = ""
-        self.handler = handler
-
-    def output(self, text):
-        self.content += text + "\n"
-
-        if "--dev" in argv:
-            print(text)
-
-        self.handler(self.content)
-
-    def debug(self, msg):
-        self.output(f"{msg}")
-
-    def info(self, msg):
-        self.output(f"[INFO] {msg}")
-
-    def warning(self, msg):
-        self.output(f"[WARNING] {msg}")
-
-    def error(self, msg):
-        self.output(f"[ERROR] {msg}")
-
-    def reset(self):
-        self.content = ""
 
 class ProgressStatus(Enum):
     ADD = 0
@@ -126,14 +98,10 @@ class ContentVC(NSViewController):
         self.urlRow = None
         self.progressSteps = ProgressStepsView.alloc().init()
         self.progressSteps.setHidden_(True)
-        self.logViewer = LogViewer.alloc().init()
-        self.logViewer.setHidden_(True)
-
-        # Logger / worker
-        self.logger = DownloaderLogger(self._enqueue_log)
+        self.logger = None
+        self.downloader = None
         self.progresser = Progresser(self._enqueue_progress)
         self.userDefaults = UserDefaults()
-        self.downloader = Downloader(self.logger, self.progresser)
 
         return self
 
@@ -152,7 +120,7 @@ class ContentVC(NSViewController):
         self.urlRow.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
         # ---- Add outer subviews
-        for sub in (self.urlRow, self.progressSteps, self.logViewer):
+        for sub in (self.urlRow, self.progressSteps):
             sub.setTranslatesAutoresizingMaskIntoConstraints_(False)
             root.addSubview_(sub)
 
@@ -167,21 +135,17 @@ class ContentVC(NSViewController):
             self.progressSteps.trailingAnchor().constraintEqualToAnchor_(self.urlRow.trailingAnchor()),
             self.progressSteps.topAnchor().constraintEqualToAnchor_constant_(self.urlRow.bottomAnchor(), 12.0),
             self.progressSteps.heightAnchor().constraintGreaterThanOrEqualToConstant_(32.0),
-
-            self.logViewer.leadingAnchor().constraintEqualToAnchor_(self.progressSteps.leadingAnchor()),
-            self.logViewer.trailingAnchor().constraintEqualToAnchor_(self.progressSteps.trailingAnchor()),
-            self.logViewer.topAnchor().constraintEqualToAnchor_constant_(self.progressSteps.bottomAnchor(), 12.0),
-            self.logViewer.bottomAnchor().constraintEqualToAnchor_constant_(root.bottomAnchor(), -20.0),
         ])
 
     def viewDidLayout(self):
         objc.super(ContentVC, self).viewDidLayout()
 
+    def setLogger_(self, logger):
+        self.logger = logger
+        self.downloader = Downloader(self.logger, self.progresser)
+
     def _enqueue_log(self, text):
         self.performSelectorOnMainThread_withObject_waitUntilDone_("appendLog:", text, False)
-
-    def appendLog_(self, text):
-        self.logViewer.appendLog_(text)
 
     def extract_(self, sender):
         text = self.urlRow.urlValue().strip()
@@ -308,6 +272,7 @@ class RootSplitVC(NSSplitViewController):
         rightVC = ContentVC.alloc().init()
         rightVC.sidebarVC = leftVC
         self.contentVC = rightVC
+        rightVC.setLogger_(LogWindowController.sharedController().logger)
         left = NSSplitViewItem.sidebarWithViewController_(leftVC)
         right = NSSplitViewItem.splitViewItemWithViewController_(rightVC)
         self.addSplitViewItem_(left)
@@ -326,7 +291,6 @@ class NotificationDelegate(NSObject):
 class AppDelegate(NSObject):
     window = objc.ivar()
     splitVC = objc.ivar()
-    logToggleItem = objc.ivar()
 
     def applicationDidFinishLaunching_(self, notification):
         NSApp.setActivationPolicy_(NSApplicationActivationPolicyRegular)
@@ -340,8 +304,8 @@ class AppDelegate(NSObject):
             print("Notifications granted:", bool(granted), "error:", error)
         center.requestAuthorizationWithOptions_completionHandler_(opts, _auth_done)
 
-
         self.splitVC = RootSplitVC.alloc().init()
+
         rect = NSMakeRect(0, 0, 840, 620)
         style = (NSWindowStyleMaskTitled |
                  NSWindowStyleMaskClosable |
@@ -374,12 +338,15 @@ class AppDelegate(NSObject):
     
     def showPreferences_(self, sender):
         SettingsWindowController.sharedController().showWindow_(sender)
+
+    def showLogs_(self, sender):
+        LogWindowController.sharedController().showWindow_(sender)
     
     def toolbarAllowedItemIdentifiers_(self, toolbar):
-        return [NSToolbarToggleSidebarItemIdentifier, NSToolbarSidebarTrackingSeparatorItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier, "ToggleLogsItem"]
+        return [NSToolbarToggleSidebarItemIdentifier, NSToolbarSidebarTrackingSeparatorItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier]
 
     def toolbarDefaultItemIdentifiers_(self, toolbar):
-        return [NSToolbarToggleSidebarItemIdentifier, NSToolbarSidebarTrackingSeparatorItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier, "ToggleLogsItem"]
+        return [NSToolbarToggleSidebarItemIdentifier, NSToolbarSidebarTrackingSeparatorItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier]
     
     def toolbar_itemForItemIdentifier_willBeInsertedIntoToolbar_(self, toolbar, identifier, flag):
         if identifier == NSToolbarToggleSidebarItemIdentifier:
@@ -389,36 +356,6 @@ class AppDelegate(NSObject):
             item.setTarget_(self.splitVC)
             item.setAction_("toggleSidebar:")
             return item
-
-        if identifier == "ToggleLogsItem":
-            item = NSToolbarItem.alloc().initWithItemIdentifier_(identifier)
-            item.setLabel_("Logs")
-            item.setPaletteLabel_("Logs")
-            item.setTarget_(self)
-            item.setAction_("toggleLogs:")
-            item.setImage_(NSImage.imageWithSystemSymbolName_accessibilityDescription_("terminal", "Logs"))
-            item.setToolTip_("Logs")
-            item.setBordered_(True)
-            item.setVisibilityPriority_(NSToolbarItemVisibilityPriorityHigh)
-            self.logToggleItem = item
-            return item
-
-    def toggleLogs_(self, sender):
-        if not hasattr(self.splitVC, 'contentVC') or self.splitVC.contentVC is None:
-            return
-
-        logViewer = self.splitVC.contentVC.logViewer
-        new_hidden = not logViewer.isHidden()
-        logViewer.setHidden_(new_hidden)
-
-        if new_hidden:
-            image = NSImage.imageWithSystemSymbolName_accessibilityDescription_("terminal", "Logs")
-            self.logToggleItem.setImage_(image)
-        else:
-            image = NSImage.imageWithSystemSymbolName_accessibilityDescription_("terminal.fill", "Logs")
-            config = NSImageSymbolConfiguration.configurationWithPaletteColors_([NSColor.systemBlueColor()])
-            image = image.imageWithSymbolConfiguration_(config)
-            self.logToggleItem.setImage_(image)
 
 
 def main():

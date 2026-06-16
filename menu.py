@@ -56,6 +56,8 @@ def buildMenus():
     winMenu.addItemWithTitle_action_keyEquivalent_("Minimize", objc.selector(NSWindow.performMiniaturize_, signature=b"v@:@"), "m")
     winMenu.addItemWithTitle_action_keyEquivalent_("Zoom", objc.selector(NSWindow.performZoom_, signature=b"v@:@"), "")
     winMenu.addItem_(NSMenuItem.separatorItem())
+    winMenu.addItemWithTitle_action_keyEquivalent_("Logs", "showLogs:", "l")
+    winMenu.addItem_(NSMenuItem.separatorItem())
     winMenu.addItemWithTitle_action_keyEquivalent_("Bring All to Front", objc.selector(NSApplication.arrangeInFront_, signature=b"v@:@"), "")
     winItem.setSubmenu_(winMenu)
     main.addItem_(winItem)
