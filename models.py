@@ -42,7 +42,6 @@ class HistoryFormatter:
 
         for r in rows:
             ts = int(r["ts"])
-            print(r)
             age = max(0, self._now - ts)  # guard against clock skew
             for label, (lo, hi) in self._GROUPS:
                 if lo <= age < hi:

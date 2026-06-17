@@ -4,7 +4,8 @@ from Cocoa import (
     NSFont, NSColor, NSPasteboard, NSStringPboardType,
     NSMakeSize, NSLayoutConstraint, NSUserInterfaceLayoutOrientationHorizontal,
     NSBoxCustom, NSMomentaryPushInButton, NSImageOnly, NSFocusRingTypeNone,
-    NSBezelStyleShadowlessSquare, NSFontWeightSemibold, NSMutableAttributedString,
+    NSNoBorder,
+    NSBezelStyleShadowlessSquare, NSFontWeightSemibold, NSMutableAttributedString, NSBezelStyleRegularSquare
 )
 from AppKit import (
     NSBeep,
@@ -69,25 +70,23 @@ class URLRowView(NSView):
         urlContent = self.urlContainer.contentView()
         urlContent.addSubview_(urlRow)
 
-        # TODO: improve button so button box is also clickable AND add on the right of the button box a chevron down that opens a NSPopover
+        # TODO: add on the right of the button box a chevron down that opens a NSPopover
 
-        # Extract button + pill
+        # Extract button
         self.extractButtonBox = NSBox.alloc().init()
         self.extractButtonBox.setBoxType_(NSBoxCustom)
-        self.extractButtonBox.setCornerRadius_(8.0)
         self.extractButtonBox.setBorderWidth_(0.0)
+        self.extractButtonBox.setBorderType_(NSNoBorder)
         self.extractButtonBox.setContentViewMargins_(NSMakeSize(0.0, 0.0))
-        self.extractButtonBox.setFillColor_(NSColor.systemBlueColor())
         self.extractButtonBox.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
         self.extractButton = NSButton.alloc().init()
         self.extractButton.setTitle_("Extract")
-        self.extractButton.setBordered_(False)
-        self.extractButton.setBezelStyle_(NSBezelStyleShadowlessSquare)
+        self.extractButton.setBordered_(True)
+        self.extractButton.setBezelStyle_(NSBezelStyleRegularSquare)
+        self.extractButton.setBezelColor_(NSColor.controlAccentColor())
         self.extractButton.setFont_(NSFont.systemFontOfSize_weight_(NSFont.systemFontSize(), NSFontWeightSemibold))
         self.extractButton.setContentTintColor_(NSColor.whiteColor())
-        attr = NSMutableAttributedString.alloc().initWithString_("Extract")
-        self.extractButton.setAttributedTitle_(attr)
         self.extractButton.setTarget_(target)
         self.extractButton.setAction_(action)
         self.extractButton.setTranslatesAutoresizingMaskIntoConstraints_(False)
