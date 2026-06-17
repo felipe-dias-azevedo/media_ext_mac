@@ -69,6 +69,8 @@ class URLRowView(NSView):
         urlContent = self.urlContainer.contentView()
         urlContent.addSubview_(urlRow)
 
+        # TODO: improve button so button box is also clickable AND add on the right of the button box a chevron down that opens a NSPopover
+
         # Extract button + pill
         self.extractButtonBox = NSBox.alloc().init()
         self.extractButtonBox.setBoxType_(NSBoxCustom)
@@ -115,10 +117,10 @@ class URLRowView(NSView):
             self.extractButtonBox.heightAnchor().constraintEqualToConstant_(32.0),
             self.extractButtonBox.widthAnchor().constraintEqualToConstant_(76.0),
 
-            self.extractButton.centerXAnchor().constraintEqualToAnchor_(extractContent.centerXAnchor()),
-            self.extractButton.centerYAnchor().constraintEqualToAnchor_(extractContent.centerYAnchor()),
-            self.extractButton.leadingAnchor().constraintGreaterThanOrEqualToAnchor_constant_(extractContent.leadingAnchor(), 8.0),
-            self.extractButton.trailingAnchor().constraintLessThanOrEqualToAnchor_constant_(extractContent.trailingAnchor(), -8.0),
+            self.extractButton.leadingAnchor().constraintEqualToAnchor_(extractContent.leadingAnchor()),
+            self.extractButton.trailingAnchor().constraintEqualToAnchor_(extractContent.trailingAnchor()),
+            self.extractButton.topAnchor().constraintEqualToAnchor_(extractContent.topAnchor()),
+            self.extractButton.bottomAnchor().constraintEqualToAnchor_(extractContent.bottomAnchor()),
         ])
 
         return self

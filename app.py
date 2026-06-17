@@ -153,6 +153,7 @@ class ContentVC(NSViewController):
             NSBeep()
             return
 
+        # TODO: check if is youtube url and contains list query 
         if not text.lower().startswith("https://"):  # TODO: add proper validation
             alert = NSAlert.alloc().init()
             alert.setMessageText_("Invalid URL")

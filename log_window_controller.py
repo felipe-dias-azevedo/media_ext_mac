@@ -47,6 +47,7 @@ class LogWindowController(NSWindowController):
         return cls.shared
 
     def init(self):
+        # TODO: move to NSPanel
         win = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             NSMakeRect(0, 0, 540, 420),
             (NSWindowStyleMaskTitled |
