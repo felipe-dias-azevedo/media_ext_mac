@@ -10,7 +10,8 @@ from Cocoa import (
     NSTableViewAnimationSlideDown, NSTableViewAnimationEffectFade, NSLineBreakByTruncatingTail,
     NSFontWeightMedium, NSFontWeightBold,
 )
-from Foundation import NSMutableIndexSet, NSThread, NSDateFormatter, NSDate
+from AppKit import NSWorkspace
+from Foundation import NSMutableIndexSet, NSThread, NSDateFormatter, NSDate, NSURL
 from sys import argv
 from datetime import datetime
 from database import MediaDB, DB_FILENAME
@@ -45,7 +46,6 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
 
         self.db = MediaDB(db_path=db_path(DB_FILENAME, dev_env="--dev" in argv))
         self.data = []
-        self._contextMenuRow = None
         self._contextMenuActionPerformed = False
 
         self.formatter = NSDateFormatter.alloc().init()
@@ -199,44 +199,52 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         idxs.addIndex_(row)
         tableView.selectRowIndexes_byExtendingSelection_(idxs, False)
 
-        self._contextMenuRow = row
         self._contextMenuActionPerformed = False
 
         menu = NSMenu.alloc().initWithTitle_("")
         menu.setDelegate_(self)
 
+        copy_title_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Open File Location", "openFileLocation:", "")
+        copy_title_item.setTarget_(self)
+        copy_title_item.setRepresentedObject_(self.data[row].path)
+        menu.addItem_(copy_title_item)
+
+        menu.addItem_(NSMenuItem.separatorItem())
+
         copy_title_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Copy File Name", "copyTitle:", "")
         copy_title_item.setTarget_(self)
-        copy_title_item.setRepresentedObject_(row)
+        copy_title_item.setRepresentedObject_(self.data[row].title)
         menu.addItem_(copy_title_item)
 
         copy_url_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Copy URL", "copyURL:", "")
         copy_url_item.setTarget_(self)
-        copy_url_item.setRepresentedObject_(row)
+        copy_url_item.setRepresentedObject_(self.data[row].url)
         menu.addItem_(copy_url_item)
-
-        # TODO: add item to open the file path in finder (open file location)
 
         return menu
 
+    def openFileLocation_(self, sender):
+        self._contextMenuActionPerformed = True
+        path = sender.representedObject()
+        if path is None:
+            return
+        url = NSURL.fileURLWithPath_(path)
+        NSWorkspace.sharedWorkspace().activateFileViewerSelectingURLs_([url])
+    
     def copyTitle_(self, sender):
         self._contextMenuActionPerformed = True
-        row = sender.representedObject()
-        if row is None or row == -1:
+        title = sender.representedObject()
+        if title is None:
             return
-
-        title = self.data[row].title
         pasteboard = NSPasteboard.generalPasteboard()
         pasteboard.clearContents()
-        pasteboard.setString_forType_(title, NSStringPboardType)
+        pasteboard.setString_forType_(title, "public.utf8-plain-text")
 
     def copyURL_(self, sender):
         self._contextMenuActionPerformed = True
-        row = sender.representedObject()
-        if row is None or row == -1:
+        url = sender.representedObject()
+        if url is None:
             return
-
-        url = self.data[row].url
         pasteboard = NSPasteboard.generalPasteboard()
         pasteboard.clearContents()
         pasteboard.setString_forType_(url, "public.utf8-plain-text")
@@ -244,7 +252,6 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
     def menuDidClose_(self, menu):
         if not self._contextMenuActionPerformed:
             self.table.deselectAll_(None)
-        self._contextMenuRow = None
         self._contextMenuActionPerformed = False
 
     def addRowToSidebar_(self, media_item):
