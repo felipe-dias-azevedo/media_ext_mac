@@ -30,7 +30,7 @@ class MediaDB:
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS history (
                 id   INTEGER PRIMARY KEY AUTOINCREMENT,
-                path TEXT    NOT NULL,
+                path TEXT    NULL,
                 file TEXT    NOT NULL,
                 url  TEXT    NOT NULL,
                 ts   INTEGER NOT NULL
@@ -39,6 +39,14 @@ class MediaDB:
         # Helpful index for time-ordered queries
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_history_ts ON history(ts)")
         self.conn.commit()
+
+        self._migrate_history_schema()
+
+    def _migrate_history_schema(self) -> None:
+        cols = [row[1] for row in self.conn.execute("PRAGMA table_info(history)").fetchall()]
+        if "path" not in cols:
+            self.conn.execute("ALTER TABLE history ADD COLUMN path TEXT NULL DEFAULT NULL")
+            self.conn.commit()
 
     # context-manager niceties
     def __enter__(self) -> "MediaDB":

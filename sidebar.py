@@ -204,10 +204,11 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         menu = NSMenu.alloc().initWithTitle_("")
         menu.setDelegate_(self)
 
-        copy_title_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Open File Location", "openFileLocation:", "")
-        copy_title_item.setTarget_(self)
-        copy_title_item.setRepresentedObject_(self.data[row].path)
-        menu.addItem_(copy_title_item)
+        open_file_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Open File Location", "openFileLocation:", "")
+        open_file_item.setTarget_(self)
+        open_file_item.setRepresentedObject_(self.data[row].path)
+        open_file_item.setHidden_(self.data[row].path == None)
+        menu.addItem_(open_file_item)
 
         menu.addItem_(NSMenuItem.separatorItem())
 

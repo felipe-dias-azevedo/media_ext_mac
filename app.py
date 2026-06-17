@@ -20,7 +20,7 @@ from Cocoa import (
     NSUserDefaults
 )
 from AppKit import (
-    NSTableView, NSTableColumn, NSBeep
+    NSBeep
 )
 from UserNotifications import (
     UNUserNotificationCenter,
@@ -30,20 +30,14 @@ from UserNotifications import (
     UNNotificationPresentationOptionAlert,
     UNNotificationPresentationOptionSound,
 )
-from Foundation import (
-    NSMutableIndexSet, NSNotificationCenter, NSBundle
-)
 import objc
 import os
 import threading
-from sys import argv
 from datetime import datetime
-from database import MediaDB, DB_FILENAME
 from downloader import Downloader
 from progress import ProgressStepsView
 from user_defaults import UserDefaults
-from models import MediaItem, HistoryFormatter
-from db_path import db_path
+from models import MediaItem
 from models import MediaItem
 from notifications import send_notification
 from menu import buildMenus
