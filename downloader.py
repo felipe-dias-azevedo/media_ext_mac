@@ -5,6 +5,7 @@ import yt_dlp
 import imageio_ffmpeg
 from user_defaults import Normalization
 from utils import human_size
+from re import compile
 
 class Downloader:
     def __init__(self, logger, progresser):
@@ -13,6 +14,8 @@ class Downloader:
         self.progresser = progresser
 
         self._seen_postprocessors = {}
+
+        self.url_regex = compile("^(https?:\/\/)?(([a-zA-Z0-9-]+\.)?youtube\.com|youtu\.be)\/.+$")
 
     def _postprocessor(self, d):
         postprocessor = d.get("postprocessor")
@@ -95,3 +98,6 @@ class Downloader:
         shutil.move(src_path, dest_path)
         shutil.rmtree(os.path.dirname(src_path), ignore_errors=True)
         return dest_path
+    
+    def is_valid_url(self, url: str):
+        return bool(self.url_regex.match(url))

@@ -154,7 +154,8 @@ class ContentVC(NSViewController):
             return
 
         # TODO: check if is youtube url and contains list query 
-        if not text.lower().startswith("https://"):  # TODO: add proper validation
+        if not self.downloader.is_valid_url(text):
+            NSBeep()
             alert = NSAlert.alloc().init()
             alert.setMessageText_("Invalid URL")
             alert.setInformativeText_("Please enter a valid URL.")
@@ -318,6 +319,7 @@ class AppDelegate(NSObject):
         self.window.setTitle_("Media.Ext")
         self.window.setStyleMask_(self.window.styleMask() | NSWindowStyleMaskFullSizeContentView)
         self.window.setToolbarStyle_(NSWindowToolbarStyleUnified)
+        self.window.setTitlebarAppearsTransparent_(True)
         self.window.setContentViewController_(self.splitVC)
         self.window.setContentSize_(NSMakeSize(840, 620))
         self.window.center()

@@ -33,13 +33,13 @@ class URLRowView(NSView):
 
         self.urlInlineLabel = NSTextField.labelWithString_("URL")
         self.urlInlineLabel.setFont_(NSFont.systemFontOfSize_(NSFont.systemFontSize()))
-        self.urlInlineLabel.setTextColor_(NSColor.labelColor())
+        self.urlInlineLabel.setTextColor_(NSColor.secondaryLabelColor())
 
         self.urlField = NSTextField.alloc().init()
         self.urlField.setBordered_(False)
         self.urlField.setDrawsBackground_(False)
         self.urlField.setFocusRingType_(NSFocusRingTypeNone)
-        self.urlField.setPlaceholderString_("https")
+        self.urlField.setPlaceholderString_("Paste a video link")
         self.urlField.cell().setWraps_(False)
         self.urlField.cell().setScrollable_(True)
         self.urlField.cell().setUsesSingleLineMode_(True)
