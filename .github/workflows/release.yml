@@ -58,7 +58,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: MediaExt-macOS-arm64
-          path: dist/MediaExt-macOS-arm64.dmg
+          path: MediaExt-macOS-arm64.dmg
 
   build-x86:
     name: Build macOS Intel
@@ -109,7 +109,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: MediaExt-macOS-intel
-          path: dist/MediaExt-macOS-intel.dmg
+          path: MediaExt-macOS-intel.dmg
 
   release:
     name: Create Draft Release
