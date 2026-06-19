@@ -19,19 +19,6 @@ from db_path import db_path
 from models import MediaItem, HistoryFormatter
 
 
-class SidebarTableView(NSTableView):
-    def menuForEvent_(self, event):
-        point = self.convertPoint_fromView_(event.locationInWindow(), None)
-        row = self.rowAtPoint_(point)
-        if row == -1:
-            return None
-
-        delegate = self.delegate()
-        if delegate and hasattr(delegate, 'tableView_menuForEvent_'):
-            return delegate.tableView_menuForEvent_(self, event)
-        return None
-
-
 # TODO: Add search/filter functionality, e.g. a search field at the top of the sidebar that filters the history items in real time as the user types. This would be especially useful as the history grows over time.
 
 class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewDataSource"),
@@ -40,7 +27,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         self = objc.super(SidebarVC, self).init()
         if self is None:
             return None
-        self.table = SidebarTableView.alloc().init()
+        self.table = NSTableView.alloc().init()
         self.scroll = NSScrollView.alloc().init()
         self.visualEffect = NSVisualEffectView.alloc().init()
 
@@ -66,6 +53,11 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 250, 350))
         view.setWantsLayer_(True)
         self.setView_(view)
+
+        # Context Menu
+        context_menu = NSMenu.alloc().initWithTitle_("Context")
+        context_menu.setDelegate_(self)
+        self.table.setMenu_(context_menu)
         
         # Add visual effect view first
         self.visualEffect.setMaterial_(NSVisualEffectMaterialSidebar)
@@ -125,7 +117,6 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         return bool(self.data[row].isGroup)
 
     def tableView_shouldSelectRow_(self, tableView, row):
-        # return self.data[row].isGroup == False
         return False
 
     # Views per row
@@ -157,7 +148,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
                 effectView.topAnchor().constraintEqualToAnchor_(v.topAnchor()),
                 effectView.heightAnchor().constraintEqualToConstant_(44),
 
-                label.leadingAnchor().constraintEqualToAnchor_constant_(effectView.leadingAnchor(), 18),
+                label.leadingAnchor().constraintEqualToAnchor_constant_(effectView.leadingAnchor(), 24),
                 label.trailingAnchor().constraintLessThanOrEqualToAnchor_constant_(effectView.trailingAnchor(), -10),
                 label.centerYAnchor().constraintEqualToAnchor_(v.centerYAnchor()),
             ])
@@ -178,8 +169,8 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
             title.setTranslatesAutoresizingMaskIntoConstraints_(False)
             sub.setTranslatesAutoresizingMaskIntoConstraints_(False)
             NSLayoutConstraint.activateConstraints_([
-                title.leadingAnchor().constraintEqualToAnchor_constant_(v.leadingAnchor(), 2.0),
-                title.trailingAnchor().constraintEqualToAnchor_constant_(v.trailingAnchor(), -2.0),
+                title.leadingAnchor().constraintEqualToAnchor_constant_(v.leadingAnchor(), 8.0),
+                title.trailingAnchor().constraintEqualToAnchor_constant_(v.trailingAnchor(), -4.0),
                 title.topAnchor().constraintEqualToAnchor_constant_(v.topAnchor(), 6.0),
 
                 sub.leadingAnchor().constraintEqualToAnchor_(title.leadingAnchor()),
@@ -189,40 +180,55 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
             ])
             return v
 
-    def tableView_menuForEvent_(self, tableView, event):
-        point = tableView.convertPoint_fromView_(event.locationInWindow(), None)
-        row = tableView.rowAtPoint_(point)
-        if row == -1 or self.data[row].isGroup:
-            return None
+    def menuNeedsUpdate_(self, menu):
+        # Clear old items
+        menu.removeAllItems()
 
-        idxs = NSMutableIndexSet.indexSet()
-        idxs.addIndex_(row)
-        tableView.selectRowIndexes_byExtendingSelection_(idxs, False)
+        # Find out which row AppKit just drew the border around
+        row = self.table.clickedRow()
 
-        self._contextMenuActionPerformed = False
+        # Guard boundaries
+        if row < 0 or row >= len(self.data) or self.data[row].isGroup:
+            return
 
-        menu = NSMenu.alloc().initWithTitle_("")
-        menu.setDelegate_(self)
+        item = self.data[row]
 
-        open_file_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Open File Location", "openFileLocation:", "")
-        open_file_item.setTarget_(self)
-        open_file_item.setRepresentedObject_(self.data[row].path)
-        open_file_item.setHidden_(self.data[row].path == None)
-        menu.addItem_(open_file_item)
+        if item.isGroup:
+            return
+
+        # Open File Location
+        open_file_location = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            "Open File Location",
+            "openFileLocation:",
+            ""
+        )
+        open_file_location.setTarget_(self)
+        open_file_location.setRepresentedObject_(item.path)
+        open_file_location.setHidden_(item.path is None)
+        menu.addItem_(open_file_location)
 
         menu.addItem_(NSMenuItem.separatorItem())
 
-        copy_title_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Copy File Name", "copyTitle:", "")
-        copy_title_item.setTarget_(self)
-        copy_title_item.setRepresentedObject_(self.data[row].title)
-        menu.addItem_(copy_title_item)
+        # Copy File Name
+        copy_title = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            "Copy File Name",
+            "copyTitle:",
+            ""
+        )
+        copy_title.setTarget_(self)
+        copy_title.setRepresentedObject_(item.title)
+        menu.addItem_(copy_title)
 
-        copy_url_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_("Copy URL", "copyURL:", "")
-        copy_url_item.setTarget_(self)
-        copy_url_item.setRepresentedObject_(self.data[row].url)
-        menu.addItem_(copy_url_item)
+        # Copy URL
+        copy_url = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            "Copy URL",
+            "copyURL:",
+            ""
+        )
+        copy_url.setTarget_(self)
+        copy_url.setRepresentedObject_(item.url)
+        menu.addItem_(copy_url)
 
-        return menu
 
     def openFileLocation_(self, sender):
         self._contextMenuActionPerformed = True
