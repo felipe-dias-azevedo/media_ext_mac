@@ -10,7 +10,7 @@ from Cocoa import (
     NSLayoutConstraintOrientationHorizontal
 )
 import objc
-from user_defaults import UserDefaults, NORMALIZATION_OPTIONS
+from utils.user_defaults import UserDefaults, NORMALIZATION_OPTIONS
 
 # TODO: improve layout of settings 
 

@@ -3,8 +3,8 @@ import os
 import shutil
 import yt_dlp
 import imageio_ffmpeg
-from user_defaults import Normalization
-from utils import human_size
+from utils.user_defaults import Normalization
+from utils.utils import human_size
 
 class Downloader:
     def __init__(self, logger, progresser):

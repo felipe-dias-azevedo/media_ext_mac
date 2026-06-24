@@ -13,7 +13,7 @@ pyinstaller --name MediaExt \
     --hidden-import=yt_dlp \
     --hidden-import=imageio_ffmpeg \
     --osx-bundle-identifier felipediasazevedo.mediaext \
-    app.py
+    src/app.py
 
 plutil -replace CFBundleShortVersionString \
     -string "$VERSION" \

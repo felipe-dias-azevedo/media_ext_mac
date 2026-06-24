@@ -10,7 +10,7 @@ from Cocoa import (
 from AppKit import (
     NSBeep,
 )
-from url_validator import YtValidator
+from utils.url_validator import YtValidator
 
 
 class URLRowView(NSView):

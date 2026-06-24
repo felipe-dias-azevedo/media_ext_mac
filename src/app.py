@@ -34,19 +34,18 @@ import objc
 import os
 import threading
 from datetime import datetime
-from downloader import Downloader
-from progress import ProgressStepsView
-from user_defaults import UserDefaults
-from models import MediaItem
-from models import MediaItem
-from notifications import send_notification
-from menu import buildMenus
-from settings import SettingsWindowController
-from url_row import URLRowView
-from sidebar import SidebarVC
-from log_window_controller import LogWindowController
+from services.downloader import Downloader
+from views.progress import ProgressStepsView
+from utils.user_defaults import UserDefaults
+from models.models import MediaItem
+from utils.notifications import send_notification
+from views.menu import buildMenus
+from views.settings import SettingsWindowController
+from views.url_row import URLRowView
+from views.sidebar import SidebarVC
+from views.log_window_controller import LogWindowController
 from enum import Enum
-from url_validator import YtValidator
+from utils.url_validator import YtValidator
 
 class Progresser:
     def __init__(self, handler):

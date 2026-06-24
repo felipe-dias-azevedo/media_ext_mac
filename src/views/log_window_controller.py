@@ -6,7 +6,7 @@ from Cocoa import (
     NSMakeRect, NSColor, NSLayoutConstraint,
     NSApp, NSMakeSize
 )
-from log_viewer import LogViewer
+from views.log_viewer import LogViewer
 
 class DownloaderLogger:
     def __init__(self, handler):

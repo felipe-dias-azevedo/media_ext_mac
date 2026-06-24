@@ -84,7 +84,7 @@ class MediaDB:
 
 # --- Example usage ---
 if __name__ == "__main__":
-    from models import MediaItem
+    from models.models import MediaItem
     db = MediaDB()
     media_item = MediaItem.item(path="/path/to/video.mp4", title="example.mp4", url="https://example.com/video", timestamp=int(time.time()))
     new_id = db.insert_history(media_item)

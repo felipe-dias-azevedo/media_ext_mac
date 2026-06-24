@@ -41,7 +41,7 @@ pip install -r requirements.txt
 ### Run (dev)
 
 ```sh
-python app.py
+python src/app.py
 ```
 
 ## Run release
