@@ -11,7 +11,7 @@ from Cocoa import (
     NSUserInterfaceLayoutOrientationHorizontal, NSBoxCustom, NSMomentaryPushInButton, NSControlSizeLarge,
     NSBezelStyleShadowlessSquare, NSImageOnly, NSFocusRingTypeNone, NSBezelStyleRounded, NSProgressIndicatorStyleSpinning,
     NSTextLayoutOrientationHorizontal, NSLineBreakByTruncatingMiddle, NSFontWeightMedium,
-    NSSavePanel, NSModalResponseOK, NSAlert, NSFontWeightSemibold, NSNoBorder,
+    NSSavePanel, NSModalResponseOK, NSModalResponseCancel, NSAlert, NSFontWeightSemibold, NSNoBorder,
     NSVisualEffectView, NSVisualEffectMaterialSidebar, NSToolbarSidebarTrackingSeparatorItemIdentifier,
     NSVisualEffectBlendingModeBehindWindow, NSVisualEffectStateActive, NSWindowTitleHidden,
     NSToolbarDisplayModeIconOnly, NSToolbarToggleSidebarItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier,
@@ -20,7 +20,7 @@ from Cocoa import (
     NSUserDefaults
 )
 from AppKit import (
-    NSBeep
+    NSBeep, NSAlertStyleWarning, NSAlertStyleInformational, NSAlertFirstButtonReturn, NSAlertSecondButtonReturn
 )
 from UserNotifications import (
     UNUserNotificationCenter,
@@ -46,6 +46,7 @@ from url_row import URLRowView
 from sidebar import SidebarVC
 from log_window_controller import LogWindowController
 from enum import Enum
+from url_validator import YtValidator
 
 class Progresser:
     def __init__(self, handler):
@@ -91,6 +92,7 @@ class ContentVC(NSViewController):
 
         # UI elements
         self.urlRow = None
+        # TODO: when adding support to list/playlist add a component "PlaylistStatusView" to show the total progress of all files
         self.progressSteps = ProgressStepsView.alloc().init()
         self.progressSteps.setHidden_(True)
         self.logger = None
@@ -142,28 +144,60 @@ class ContentVC(NSViewController):
     def _enqueue_log(self, text):
         self.performSelectorOnMainThread_withObject_waitUntilDone_("appendLog:", text, False)
 
-    def extract_(self, sender):
-        text = self.urlRow.urlValue().strip()
-        if not text:
-            NSBeep()
-            return
-
-        # TODO: check if is youtube url and contains list query 
-        if not self.downloader.is_valid_url(text):
-            NSBeep()
-            alert = NSAlert.alloc().init()
-            alert.setMessageText_("Invalid URL")
-            alert.setInformativeText_("Please enter a valid URL.")
-            alert.addButtonWithTitle_("OK")
-            alert.runModal()
-            return
-
+    def startExtract(self):
         if self.progressSteps.isHidden():
             self.progressSteps.setHidden_(False)
         self.progressSteps.reset()
         self.logger.reset()
         self.logger.info("Extract started.")
         self.setBusy_(True)
+
+    def _extractPlaylist_(self, response):
+        text = self.urlRow.urlValue().strip()
+        if response == NSAlertFirstButtonReturn:
+            text = YtValidator.remove_playlist_from_query(text)
+        else:
+            return
+        self.startExtract()
+        threading.Thread(target=self._download_thread, args=(text,), daemon=True).start()
+
+    def extract_(self, sender): 
+        
+        text = self.urlRow.urlValue().strip()
+        if not text:
+            NSBeep()
+            return
+
+        validator = YtValidator(text)
+
+        if not validator.is_valid_url():
+            NSBeep()
+            alert = NSAlert.alloc().init()
+            alert.setMessageText_("Invalid URL")
+            alert.setInformativeText_("Please enter a valid URL.")
+            alert.setAlertStyle_(NSAlertStyleWarning)
+            alert.addButtonWithTitle_("OK")
+            alert.beginSheetModalForWindow_completionHandler_(
+                self.view().window(),
+                lambda _: None
+            )
+            return
+
+        if validator.is_content() and validator.is_playlist():
+            alert = NSAlert.alloc().init()
+            alert.setMessageText_("Playlist Detected")
+            alert.setInformativeText_("This URL contains a playlist. Would you like to download the entire playlist or only the current media?")
+            alert.setAlertStyle_(NSAlertStyleInformational)
+            alert.addButtonWithTitle_("Current Media")
+            alert.addButtonWithTitle_("Cancel")
+                    
+            alert.beginSheetModalForWindow_completionHandler_(
+                self.view().window(),
+                self._extractPlaylist_
+            )
+            return
+
+        self.startExtract()
         threading.Thread(target=self._download_thread, args=(text,), daemon=True).start()
 
     def _enqueue_progress(self, args):

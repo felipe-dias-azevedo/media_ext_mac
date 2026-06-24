@@ -21,6 +21,8 @@ from models import MediaItem, HistoryFormatter
 
 # TODO: Add search/filter functionality, e.g. a search field at the top of the sidebar that filters the history items in real time as the user types. This would be especially useful as the history grows over time.
 
+# TODO: enable selection to double click on row to open file location
+
 class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewDataSource"),
                                              objc.protocolNamed("NSTableViewDelegate")]):
     def init(self):

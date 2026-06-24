@@ -10,6 +10,7 @@ from Cocoa import (
 from AppKit import (
     NSBeep,
 )
+from url_validator import YtValidator
 
 
 class URLRowView(NSView):
@@ -126,11 +127,15 @@ class URLRowView(NSView):
 
     def pasteURL_(self, sender):
         pb = NSPasteboard.generalPasteboard()
-        s = pb.stringForType_(NSStringPboardType)
-        if not s:
+        text = pb.stringForType_(NSStringPboardType)
+        if not text:
             NSBeep()
             return
-        self.urlField.setStringValue_(s)
+        validator = YtValidator(text)
+        if not validator.is_valid_url():
+            NSBeep()
+            return
+        self.urlField.setStringValue_(text)
     
     def urlValue(self):
         return self.urlField.stringValue()
