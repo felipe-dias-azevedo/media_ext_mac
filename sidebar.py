@@ -21,8 +21,6 @@ from models import MediaItem, HistoryFormatter
 
 # TODO: Add search/filter functionality, e.g. a search field at the top of the sidebar that filters the history items in real time as the user types. This would be especially useful as the history grows over time.
 
-# TODO: enable selection to double click on row to open file location
-
 class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewDataSource"),
                                              objc.protocolNamed("NSTableViewDelegate")]):
     def init(self):
@@ -84,6 +82,8 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         self.table.addTableColumn_(col)
         self.table.setDelegate_(self)
         self.table.setDataSource_(self)
+        self.table.setTarget_(self)
+        self.table.setDoubleAction_("openFileLocation:")
         
         # Configure scroll view
         self.scroll.setDocumentView_(self.table)
@@ -119,7 +119,7 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
         return bool(self.data[row].isGroup)
 
     def tableView_shouldSelectRow_(self, tableView, row):
-        return False
+        return not self.data[row].isGroup
 
     # Views per row
     def tableView_viewForTableColumn_row_(self, tableView, tableColumn, row):
@@ -235,6 +235,13 @@ class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewData
     def openFileLocation_(self, sender):
         self._contextMenuActionPerformed = True
         path = sender.representedObject()
+        if path is None:
+            row = sender.selectedRow()
+            if row < 0 or row >= len(self.data):
+                return
+            item = self.data[row]
+            path = item.path
+
         if path is None:
             return
         url = NSURL.fileURLWithPath_(path)
