@@ -33,8 +33,13 @@ from AppKit import (
     NSUserInterfaceLayoutOrientationHorizontal,
     NSUserInterfaceLayoutOrientationVertical,
     NSView,
+    NSVisualEffectView,
+    NSVisualEffectMaterialHUDWindow,
+    NSVisualEffectBlendingModeWithinWindow,
+    NSVisualEffectStateActive,
     NSBoxCustom,
-    NSLineBreakByTruncatingTail
+    NSLineBreakByTruncatingTail,
+    NSWindowAbove
 )
 from utils.symbols import create_symbol
 from views.current_step_separator_view import CurrentStepSeparator
@@ -51,7 +56,13 @@ class PlaylistItemStatus:
     description: str | None = None
 
 
+HEADER_HEIGHT = 44
+
 class PlaylistItemRowView(NSView):
+    STATE_PENDING = "pending"
+    STATE_LOADING = "loading"
+    STATE_SUCCESS = "success"
+    STATE_ERROR = "error"
 
     def init(self):
         self = objc.super(PlaylistItemRowView, self).init()
@@ -59,6 +70,7 @@ class PlaylistItemRowView(NSView):
             return None
 
         self.item_id = None
+        self.state = self.STATE_PENDING
 
         self.iconView = NSImageView.alloc().init()
 
@@ -198,6 +210,7 @@ class PlaylistItemRowView(NSView):
             self.descriptionLabel.setStringValue_("")
 
     def setPending(self):
+        self.state = self.STATE_PENDING
         self.iconView.setHidden_(True)
         self.spinner.stopAnimation_(None)
         self.spinner.setHidden_(True)
@@ -205,6 +218,7 @@ class PlaylistItemRowView(NSView):
         self.showFolderButton.setEnabled_(False)
 
     def setLoading(self):
+        self.state = self.STATE_LOADING
         self.iconView.setHidden_(True)
         self.spinner.setHidden_(False)
         self.spinner.startAnimation_(None)
@@ -212,6 +226,7 @@ class PlaylistItemRowView(NSView):
         self.showFolderButton.setEnabled_(False)
 
     def setSuccess(self):
+        self.state = self.STATE_SUCCESS
         self.iconView.setHidden_(False)
         self.spinner.stopAnimation_(None)
         self.spinner.setHidden_(True)
@@ -223,6 +238,7 @@ class PlaylistItemRowView(NSView):
         self.showFolderButton.setEnabled_(True)
 
     def setError(self):
+        self.state = self.STATE_ERROR
         self.iconView.setHidden_(False)
         self.spinner.stopAnimation_(None)
         self.spinner.setHidden_(True)
@@ -275,16 +291,18 @@ class PlaylistStatusView(NSView):
             self.progressIndicator,
             self.progressLabel,
         ])
+        self.headerStack.setBackgroundColor_(NSColor.clearColor())
         self.headerStack.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
         self.headerStack.setAlignment_(NSLayoutAttributeCenterY)
         self.headerStack.setDistribution_(NSStackViewDistributionFill)
         self.headerStack.setSpacing_(8)
 
-        self.separator = NSBox.alloc().initWithFrame_(NSMakeRect(0, 0, 0, 1))
-        self.separator.setBoxType_(NSBoxCustom)
-        self.separator.setBorderWidth_(0.0)
-        self.separator.setFillColor_(NSColor.separatorColor())
-        self.separator.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.headerEffectView = NSVisualEffectView.alloc().init()
+        self.headerEffectView.setCornerRadius_(8.0)
+        self.headerEffectView.setMaterial_(NSVisualEffectMaterialHUDWindow)
+        self.headerEffectView.setBlendingMode_(NSVisualEffectBlendingModeWithinWindow)
+        self.headerEffectView.setState_(NSVisualEffectStateActive)
+        self.headerEffectView.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
         self.contentStack = NSStackView.alloc().init()
         self.contentStack.setOrientation_(NSUserInterfaceLayoutOrientationVertical)
@@ -296,100 +314,55 @@ class PlaylistStatusView(NSView):
         self.scrollView.setHasVerticalScroller_(True)
         self.scrollView.setDrawsBackground_(False)
         self.scrollView.setDocumentView_(self.contentStack)
+        scrollContentView = self.scrollView.contentView()
+        
+
+        self.headerEffectView.addSubview_(self.headerStack)
 
         bgContent = self.background.contentView()
-        bgContent.addSubview_(self.headerStack)
-        bgContent.addSubview_(self.separator)
         bgContent.addSubview_(self.scrollView)
+        bgContent.addSubview_positioned_relativeTo_(
+            self.headerEffectView,
+            NSWindowAbove,
+            self.scrollView,
+        )
+
         self.addSubview_(self.background)
 
         self.background.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.headerEffectView.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.headerStack.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.separator.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.scrollView.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
         NSLayoutConstraint.activateConstraints_([
-            self.background.leadingAnchor().constraintEqualToAnchor_(
-                self.leadingAnchor()
-            ),
-            self.background.trailingAnchor().constraintEqualToAnchor_(
-                self.trailingAnchor()
-            ),
-            self.background.topAnchor().constraintEqualToAnchor_(
-                self.topAnchor()
-            ),
-            self.background.bottomAnchor().constraintEqualToAnchor_(
-                self.bottomAnchor()
-            ),
+            self.background.leadingAnchor().constraintEqualToAnchor_(self.leadingAnchor()),
+            self.background.trailingAnchor().constraintEqualToAnchor_(self.trailingAnchor()),
+            self.background.topAnchor().constraintEqualToAnchor_(self.topAnchor()),
+            self.background.bottomAnchor().constraintEqualToAnchor_(self.bottomAnchor()),
 
-            self.headerStack.leadingAnchor().constraintEqualToAnchor_constant_(
-                bgContent.leadingAnchor(),
-                10,
-            ),
-            self.headerStack.trailingAnchor().constraintEqualToAnchor_constant_(
-                bgContent.trailingAnchor(),
-                -10,
-            ),
-            self.headerStack.topAnchor().constraintEqualToAnchor_constant_(
-                bgContent.topAnchor(),
-                10,
-            ),
+            self.headerEffectView.leadingAnchor().constraintEqualToAnchor_(bgContent.leadingAnchor()),
+            self.headerEffectView.trailingAnchor().constraintEqualToAnchor_(bgContent.trailingAnchor()),
+            self.headerEffectView.topAnchor().constraintEqualToAnchor_(bgContent.topAnchor()),
+            self.headerEffectView.heightAnchor().constraintEqualToConstant_(HEADER_HEIGHT),
+
+            self.headerStack.leadingAnchor().constraintEqualToAnchor_constant_(self.headerEffectView.leadingAnchor(), 12),
+            self.headerStack.trailingAnchor().constraintEqualToAnchor_constant_(self.headerEffectView.trailingAnchor(), -12),
+            self.headerStack.centerYAnchor().constraintEqualToAnchor_(self.headerEffectView.centerYAnchor()),
+
             self.progressIndicator.heightAnchor().constraintEqualToConstant_(10),
 
-            self.separator.leadingAnchor().constraintEqualToAnchor_constant_(
-                bgContent.leadingAnchor(),
-                10,
-            ),
-            self.separator.trailingAnchor().constraintEqualToAnchor_constant_(
-                bgContent.trailingAnchor(),
-                -10,
-            ),
-            self.separator.topAnchor().constraintEqualToAnchor_constant_(
-                self.headerStack.bottomAnchor(),
-                10,
-            ),
-            self.separator.heightAnchor().constraintEqualToConstant_(1),
+            self.scrollView.leadingAnchor().constraintEqualToAnchor_(bgContent.leadingAnchor()),
+            self.scrollView.trailingAnchor().constraintEqualToAnchor_(bgContent.trailingAnchor()),
+            self.scrollView.topAnchor().constraintEqualToAnchor_(self.headerEffectView.bottomAnchor()),
+            self.scrollView.bottomAnchor().constraintEqualToAnchor_(bgContent.bottomAnchor()),
 
-            self.scrollView.leadingAnchor().constraintEqualToAnchor_constant_(
-                bgContent.leadingAnchor(),
-                0,
-            ),
-            self.scrollView.trailingAnchor().constraintEqualToAnchor_constant_(
-                bgContent.trailingAnchor(),
-                0,
-            ),
-            self.scrollView.topAnchor().constraintEqualToAnchor_constant_(
-                self.separator.bottomAnchor(),
-                0,
-            ),
-            self.scrollView.bottomAnchor().constraintEqualToAnchor_constant_(
-                bgContent.bottomAnchor(),
-                0,
-            ),
-        ])
-
-        content_view = self.scrollView.contentView()
-        NSLayoutConstraint.activateConstraints_([
-            self.contentStack.leadingAnchor().constraintEqualToAnchor_(
-                content_view.leadingAnchor()
-            ),
-            self.contentStack.trailingAnchor().constraintEqualToAnchor_(
-                content_view.trailingAnchor()
-            ),
-            self.contentStack.topAnchor().constraintEqualToAnchor_(
-                content_view.topAnchor()
-            ),
-            self.contentStack.widthAnchor().constraintEqualToAnchor_(
-                content_view.widthAnchor()
-            ),
+            self.contentStack.leadingAnchor().constraintEqualToAnchor_(scrollContentView.leadingAnchor()),
+            self.contentStack.trailingAnchor().constraintEqualToAnchor_(scrollContentView.trailingAnchor()),
+            self.contentStack.topAnchor().constraintEqualToAnchor_(scrollContentView.topAnchor()),
+            self.contentStack.widthAnchor().constraintEqualToAnchor_(scrollContentView.widthAnchor()),
         ])
 
         return self
-
-    def _itemValue_key_(self, item, key):
-        if isinstance(item, dict):
-            return item.get(key)
-        return getattr(item, key, None)
 
     def _appendRowWithSeparator_(self, row):
         if self.contentStack.arrangedSubviews():
@@ -397,15 +370,15 @@ class PlaylistStatusView(NSView):
             self.contentStack.addArrangedSubview_(separator)
         self.contentStack.addArrangedSubview_(row)
 
-    def setItems_(self, items):
+    def setItems_(self, items: list[PlaylistItemStatus]):
         self.reset()
         self.rows = {}
         self.itemOrder = []
 
         for item in items:
-            item_id = self._itemValue_key_(item, "id")
-            name = self._itemValue_key_(item, "name")
-            action = self._itemValue_key_(item, "action")
+            item_id = item.id
+            name = item.name
+            action = item.action
 
             if item_id is None:
                 continue
@@ -460,8 +433,13 @@ class PlaylistStatusView(NSView):
 
     def setProgressValue_(self, percent):
         percent_value = max(0, min(100, percent))
-        self.progressIndicator.setDoubleValue_(percent_value)
         self.progressLabel.setStringValue_(f"{int(percent_value)}%")
+
+        def animation(context):
+            context.setDuration_(0.25)
+            self.progressIndicator.animator().setDoubleValue_(percent_value)
+
+        NSAnimationContext.runAnimationGroup_completionHandler_(animation, None)
 
     def _updateProgress(self):
         total = len(self.rows)
@@ -471,9 +449,7 @@ class PlaylistStatusView(NSView):
 
         completed = 0
         for row in self.rows.values():
-            if not row.spinner.isHidden() and row.iconView.isHidden():
-                continue
-            if not row.iconView.isHidden() and row.showFolderButton.isHidden() is False:
+            if row.state in (PlaylistItemRowView.STATE_SUCCESS, PlaylistItemRowView.STATE_ERROR):
                 completed += 1
 
         self.setProgressValue_(completed / total * 100)
