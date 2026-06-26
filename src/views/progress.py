@@ -32,6 +32,8 @@ from AppKit import (
     NSBoxCustom,
     NSLineBreakByTruncatingTail
 )
+from utils.symbols import create_symbol
+from views.current_step_separator_view import CurrentStepSeparator
 
 
 # ============================================================
@@ -45,60 +47,6 @@ class ProgressStep:
     icon: str | None = None
     loading: bool = False
     success: bool | None = None
-
-
-# ============================================================
-# Helpers
-# ============================================================
-
-def create_symbol(name: str, point_size: float = 14.0):
-    conf = NSImageSymbolConfiguration.configurationWithPointSize_weight_(
-        point_size,
-        NSFontWeightMedium,
-    )
-
-    image = NSImage.imageWithSystemSymbolName_accessibilityDescription_(
-        name,
-        None,
-    )
-
-    return image.imageWithSymbolConfiguration_(conf)
-
-
-# ============================================================
-# Separator
-# ============================================================
-
-class CurrentStepSeparator(NSView):
-
-    def init(self):
-        self = objc.super(CurrentStepSeparator, self).init()
-        if self is None:
-            return None
-
-        line = NSBox.alloc().initWithFrame_(NSMakeRect(0, 0, 0, 1))
-        line.setBoxType_(NSBoxCustom)
-        line.setBorderWidth_(0.0)
-        line.setFillColor_(NSColor.separatorColor())
-        line.setTranslatesAutoresizingMaskIntoConstraints_(False)
-
-        self.addSubview_(line)
-
-        NSLayoutConstraint.activateConstraints_([
-            line.leadingAnchor().constraintEqualToAnchor_(
-                self.leadingAnchor()
-            ),
-            line.trailingAnchor().constraintEqualToAnchor_(
-                self.trailingAnchor()
-            ),
-            line.centerYAnchor().constraintEqualToAnchor_(
-                self.centerYAnchor()
-            ),
-            line.heightAnchor().constraintEqualToConstant_(1),
-        ])
-
-        return self
-
 
 # ============================================================
 # Row

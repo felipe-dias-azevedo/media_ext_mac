@@ -35,6 +35,7 @@ import os
 import threading
 from datetime import datetime
 from services.downloader import Downloader
+from views.playlist_status_view import PlaylistStatusView, PlaylistItemStatus
 from views.progress import ProgressStepsView
 from utils.user_defaults import UserDefaults
 from models.models import MediaItem
@@ -91,9 +92,10 @@ class ContentVC(NSViewController):
 
         # UI elements
         self.urlRow = None
-        # TODO: when adding support to list/playlist add a component "PlaylistStatusView" to show the total progress of all files
         self.progressSteps = ProgressStepsView.alloc().init()
         self.progressSteps.setHidden_(True)
+        self.playlistStatus = PlaylistStatusView.alloc().init()
+        self.playlistStatus.setHidden_(True)
         self.logger = None
         self.downloader = None
         self.progresser = Progresser(self._enqueue_progress)
@@ -116,7 +118,7 @@ class ContentVC(NSViewController):
         self.urlRow.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
         # ---- Add outer subviews
-        for sub in (self.urlRow, self.progressSteps):
+        for sub in (self.urlRow, self.progressSteps, self.playlistStatus):
             sub.setTranslatesAutoresizingMaskIntoConstraints_(False)
             root.addSubview_(sub)
 
@@ -131,6 +133,12 @@ class ContentVC(NSViewController):
             self.progressSteps.trailingAnchor().constraintEqualToAnchor_(self.urlRow.trailingAnchor()),
             self.progressSteps.topAnchor().constraintEqualToAnchor_constant_(self.urlRow.bottomAnchor(), 12.0),
             self.progressSteps.heightAnchor().constraintGreaterThanOrEqualToConstant_(32.0),
+
+            self.playlistStatus.leadingAnchor().constraintEqualToAnchor_(self.urlRow.leadingAnchor()),
+            self.playlistStatus.trailingAnchor().constraintEqualToAnchor_(self.urlRow.trailingAnchor()),
+            self.playlistStatus.topAnchor().constraintEqualToAnchor_constant_(self.progressSteps.bottomAnchor(), 12.0),
+            self.playlistStatus.bottomAnchor().constraintEqualToAnchor_constant_(root.bottomAnchor(), -24.0),
+            self.playlistStatus.heightAnchor().constraintGreaterThanOrEqualToConstant_(180.0),
         ])
 
     def viewDidLayout(self):
@@ -194,6 +202,20 @@ class ContentVC(NSViewController):
                 self.view().window(),
                 self._extractPlaylist_
             )
+            return
+        
+        if validator.is_playlist():
+            print("Playlist")
+            info = self.downloader.fetch(text)
+            
+            # TODO: present a NSView inside a Sheet for window to choose which items from playlist to download
+
+            # TODO: call self.downloader.download (passing the multiple urls aggregated in a list from info dict)
+            # TODO: understand if gonna keep using ProgressSteps
+            # TODO: Update workflows to accept the finish of multiple files
+            self.progressSteps.setHidden_(True)
+            self.playlistStatus.setHidden_(False)
+
             return
 
         self.startExtract()
