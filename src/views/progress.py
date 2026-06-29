@@ -249,10 +249,7 @@ class ProgressStepsView(NSView):
 
         self.stack = NSStackView.alloc().init()
 
-        self.stack.setOrientation_(
-            NSUserInterfaceLayoutOrientationVertical
-        )
-
+        self.stack.setOrientation_(NSUserInterfaceLayoutOrientationVertical)
         self.stack.setAlignment_(NSStackViewGravityLeading)
         self.stack.setSpacing_(10)
 

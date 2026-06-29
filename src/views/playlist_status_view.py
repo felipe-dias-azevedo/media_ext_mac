@@ -35,11 +35,13 @@ from AppKit import (
     NSView,
     NSVisualEffectView,
     NSVisualEffectMaterialHUDWindow,
+    NSVisualEffectMaterialHeaderView,
     NSVisualEffectBlendingModeWithinWindow,
     NSVisualEffectStateActive,
     NSBoxCustom,
     NSLineBreakByTruncatingTail,
-    NSWindowAbove
+    NSWindowAbove,
+    NSLayoutAttributeLeading
 )
 from utils.symbols import create_symbol
 from views.current_step_separator_view import CurrentStepSeparator
@@ -57,6 +59,10 @@ class PlaylistItemStatus:
 
 
 HEADER_HEIGHT = 44
+
+class FlippedView(NSView):
+    def isFlipped(self):
+        return True
 
 class PlaylistItemRowView(NSView):
     STATE_PENDING = "pending"
@@ -135,28 +141,16 @@ class PlaylistItemRowView(NSView):
             view.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
         NSLayoutConstraint.activateConstraints_([
-            self.leadingContainer.leadingAnchor().constraintEqualToAnchor_(
-                self.leadingAnchor()
-            ),
-            self.leadingContainer.centerYAnchor().constraintEqualToAnchor_(
-                self.centerYAnchor()
-            ),
+            self.leadingContainer.leadingAnchor().constraintEqualToAnchor_constant_(self.leadingAnchor(), 10),
+            self.leadingContainer.centerYAnchor().constraintEqualToAnchor_(self.centerYAnchor()),
             self.leadingContainer.widthAnchor().constraintEqualToConstant_(20),
             self.leadingContainer.heightAnchor().constraintEqualToConstant_(20),
 
-            self.iconView.centerXAnchor().constraintEqualToAnchor_(
-                self.leadingContainer.centerXAnchor()
-            ),
-            self.iconView.centerYAnchor().constraintEqualToAnchor_(
-                self.leadingContainer.centerYAnchor()
-            ),
+            self.iconView.centerXAnchor().constraintEqualToAnchor_(self.leadingContainer.centerXAnchor()),
+            self.iconView.centerYAnchor().constraintEqualToAnchor_(self.leadingContainer.centerYAnchor()),
 
-            self.spinner.centerXAnchor().constraintEqualToAnchor_(
-                self.leadingContainer.centerXAnchor()
-            ),
-            self.spinner.centerYAnchor().constraintEqualToAnchor_(
-                self.leadingContainer.centerYAnchor()
-            ),
+            self.spinner.centerXAnchor().constraintEqualToAnchor_(self.leadingContainer.centerXAnchor()),
+            self.spinner.centerYAnchor().constraintEqualToAnchor_(self.leadingContainer.centerYAnchor()),
 
             self.textStack.leadingAnchor().constraintEqualToAnchor_constant_(
                 self.leadingContainer.trailingAnchor(),
@@ -299,25 +293,32 @@ class PlaylistStatusView(NSView):
 
         self.headerEffectView = NSVisualEffectView.alloc().init()
         self.headerEffectView.setCornerRadius_(8.0)
-        self.headerEffectView.setMaterial_(NSVisualEffectMaterialHUDWindow)
+        self.headerEffectView.setMaterial_(NSVisualEffectMaterialHeaderView)
         self.headerEffectView.setBlendingMode_(NSVisualEffectBlendingModeWithinWindow)
         self.headerEffectView.setState_(NSVisualEffectStateActive)
         self.headerEffectView.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
         self.contentStack = NSStackView.alloc().init()
         self.contentStack.setOrientation_(NSUserInterfaceLayoutOrientationVertical)
-        self.contentStack.setAlignment_(NSStackViewGravityLeading)
-        self.contentStack.setSpacing_(6)
+        self.contentStack.setAlignment_(NSLayoutAttributeLeading)
+        self.contentStack.setSpacing_(10)
         self.contentStack.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
         self.scrollView = NSScrollView.alloc().init()
         self.scrollView.setHasVerticalScroller_(True)
         self.scrollView.setDrawsBackground_(False)
-        self.scrollView.setDocumentView_(self.contentStack)
+        self.scrollView.setAutomaticallyAdjustsContentInsets_(False)
+        self.scrollView.setContentInsets_((HEADER_HEIGHT, 0, 0, 0))
         scrollContentView = self.scrollView.contentView()
         
+        self.documentView = FlippedView.alloc().init()
+        self.documentView.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.documentView.addSubview_(self.contentStack)
+        self.scrollView.setDocumentView_(self.documentView)
 
+        # self.separator = CurrentStepSeparator.alloc().init()
         self.headerEffectView.addSubview_(self.headerStack)
+        # self.headerEffectView.addSubview_(self.separator)
 
         bgContent = self.background.contentView()
         bgContent.addSubview_(self.scrollView)
@@ -329,12 +330,19 @@ class PlaylistStatusView(NSView):
 
         self.addSubview_(self.background)
 
+        # self.separator.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.background.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.headerEffectView.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.headerStack.setTranslatesAutoresizingMaskIntoConstraints_(False)
         self.scrollView.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.contentStack.setTranslatesAutoresizingMaskIntoConstraints_(False)
 
         NSLayoutConstraint.activateConstraints_([
+            # self.separator.leadingAnchor().constraintEqualToAnchor_(self.headerEffectView.leadingAnchor()),
+            # self.separator.trailingAnchor().constraintEqualToAnchor_(self.headerEffectView.trailingAnchor()),
+            # self.separator.bottomAnchor().constraintEqualToAnchor_(self.headerEffectView.bottomAnchor()),
+            # self.separator.heightAnchor().constraintEqualToConstant_(1),
+
             self.background.leadingAnchor().constraintEqualToAnchor_(self.leadingAnchor()),
             self.background.trailingAnchor().constraintEqualToAnchor_(self.trailingAnchor()),
             self.background.topAnchor().constraintEqualToAnchor_(self.topAnchor()),
@@ -353,22 +361,25 @@ class PlaylistStatusView(NSView):
 
             self.scrollView.leadingAnchor().constraintEqualToAnchor_(bgContent.leadingAnchor()),
             self.scrollView.trailingAnchor().constraintEqualToAnchor_(bgContent.trailingAnchor()),
-            self.scrollView.topAnchor().constraintEqualToAnchor_(self.headerEffectView.bottomAnchor()),
+            self.scrollView.topAnchor().constraintEqualToAnchor_(bgContent.topAnchor()),
             self.scrollView.bottomAnchor().constraintEqualToAnchor_(bgContent.bottomAnchor()),
 
-            self.contentStack.leadingAnchor().constraintEqualToAnchor_(scrollContentView.leadingAnchor()),
-            self.contentStack.trailingAnchor().constraintEqualToAnchor_(scrollContentView.trailingAnchor()),
-            self.contentStack.topAnchor().constraintEqualToAnchor_(scrollContentView.topAnchor()),
+            self.contentStack.leadingAnchor().constraintEqualToAnchor_(self.documentView.leadingAnchor()),
+            self.contentStack.trailingAnchor().constraintEqualToAnchor_(self.documentView.trailingAnchor()),
+            self.contentStack.topAnchor().constraintEqualToAnchor_(self.documentView.topAnchor()),
+            self.contentStack.bottomAnchor().constraintEqualToAnchor_(self.documentView.bottomAnchor()),
             self.contentStack.widthAnchor().constraintEqualToAnchor_(scrollContentView.widthAnchor()),
         ])
 
         return self
 
     def _appendRowWithSeparator_(self, row):
-        if self.contentStack.arrangedSubviews():
-            separator = CurrentStepSeparator.alloc().init()
-            self.contentStack.addArrangedSubview_(separator)
+        # if self.contentStack.arrangedSubviews():
+        #     separator = CurrentStepSeparator.alloc().init()
+        #     self.contentStack.addArrangedSubview_(separator)
         self.contentStack.addArrangedSubview_(row)
+        separator = CurrentStepSeparator.alloc().init()
+        self.contentStack.addArrangedSubview_(separator)
 
     def setItems_(self, items: list[PlaylistItemStatus]):
         self.reset()

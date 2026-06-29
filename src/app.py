@@ -136,9 +136,9 @@ class ContentVC(NSViewController):
 
             self.playlistStatus.leadingAnchor().constraintEqualToAnchor_(self.urlRow.leadingAnchor()),
             self.playlistStatus.trailingAnchor().constraintEqualToAnchor_(self.urlRow.trailingAnchor()),
-            self.playlistStatus.topAnchor().constraintEqualToAnchor_constant_(self.progressSteps.bottomAnchor(), 12.0),
+            self.playlistStatus.topAnchor().constraintEqualToAnchor_constant_(self.urlRow.bottomAnchor(), 12.0),
             self.playlistStatus.bottomAnchor().constraintEqualToAnchor_constant_(root.bottomAnchor(), -24.0),
-            self.playlistStatus.heightAnchor().constraintGreaterThanOrEqualToConstant_(180.0),
+            self.playlistStatus.heightAnchor().constraintGreaterThanOrEqualToConstant_(88.0),
         ])
 
     def viewDidLayout(self):
