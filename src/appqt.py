@@ -60,8 +60,10 @@ import threading
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from re import compile as re_compile
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from utils.qt_icons import create_symbol
+from utils.theme import Theme, get_theme, refresh_theme
+from utils.url_validator import YtValidator
+from views.url_row import URLRowView
 
 from PyQt6.QtCore import (
     QAbstractAnimation,
@@ -70,7 +72,6 @@ from PyQt6.QtCore import (
     QParallelAnimationGroup,
     QPoint,
     QPropertyAnimation,
-    QRectF,
     QSize,
     Qt,
     QTimer,
@@ -80,11 +81,9 @@ from PyQt6.QtGui import (
     QAction,
     QColor,
     QFont,
-    QGuiApplication,
     QIcon,
     QKeySequence,
     QPainter,
-    QPalette,
     QPen,
 )
 from PyQt6.QtWidgets import (
@@ -94,13 +93,10 @@ from PyQt6.QtWidgets import (
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMainWindow,
     QMessageBox,
-    QPushButton,
     QScrollArea,
     QStackedLayout,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -116,118 +112,6 @@ def _app_icon() -> QIcon:
     return QIcon(str(_APP_ICON_PATH))
 
 
-# ============================================================
-# Symbols (SF Symbols replacement)
-#
-# PyQt has no built-in SF Symbols equivalent, so icons come from qtawesome,
-# which renders Font Awesome / Material Design Icons as scalable font glyphs.
-# ============================================================
-
-import qtawesome as qta
-
-# Maps our semantic symbol names (matching the old SF Symbol names) to
-# Font Awesome 5 Solid glyph names.
-_QTA_NAMES = {
-    "checkmark.circle.fill": "fa5s.check-circle",
-    "xmark.circle.fill": "fa5s.times-circle",
-    "doc.on.clipboard": "fa5s.paste",
-    "gearshape": "fa5s.cog",
-    "chevron.down": "fa5s.chevron-down",
-}
-
-
-_symbol_icon_cache: dict = {}
-
-
-def create_symbol(name: str, color: "QColor | None" = None) -> QIcon:
-    """Returns a cached qtawesome icon for one of this app's symbol names."""
-    color = QColor(color) if color is not None else QColor(142, 142, 147)
-    cache_key = (name, color.name(QColor.NameFormat.HexArgb))
-    cached = _symbol_icon_cache.get(cache_key)
-    if cached is not None:
-        return cached
-
-    icon = qta.icon(_QTA_NAMES[name], color=color)
-    _symbol_icon_cache[cache_key] = icon
-    return icon
-
-
-# ============================================================
-# Theme colors (light/dark mode)
-#
-# The first pass used QSS roles like `palette(mid)` for borders and
-# secondary text. Those roles exist for widget 3D shading, not for the
-# label/separator/fill semantics this app actually wants, so they read as
-# "wrong" in dark mode (too dark to see, wrong tint, etc). This uses the
-# same dynamic colors AppKit was using — NSColor.separatorColor,
-# secondaryLabelColor, tertiarySystemFillColor, systemGreen/RedColor — with
-# their actual light/dark RGBA values, picked explicitly based on the
-# active color scheme.
-# ============================================================
-
-class Theme:
-    def __init__(self, dark: bool):
-        self.dark = dark
-        if dark:
-            self.separator = QColor(84, 84, 88, 166)         # separatorColor (dark)
-            self.secondary_text = QColor(235, 235, 245, 153)  # secondaryLabelColor (dark)
-            self.fill = QColor(118, 118, 128, 61)              # tertiarySystemFillColor (dark)
-            self.hover_fill = QColor(255, 255, 255, 31)
-            self.pressed_fill = QColor(255, 255, 255, 46)
-            self.icon_secondary = QColor(152, 152, 157)
-            self.success = QColor(48, 209, 88)                 # systemGreenColor (dark)
-            self.error = QColor(255, 69, 58)                   # systemRedColor (dark)
-        else:
-            self.separator = QColor(209, 209, 214)
-            self.secondary_text = QColor(74, 74, 80)
-            self.fill = QColor(245, 245, 247)
-            self.icon_secondary = QColor(110, 110, 115)
-            # self.separator = QColor(60, 60, 67, 74)           # separatorColor (light)
-            # self.secondary_text = QColor(60, 60, 67, 153)     # secondaryLabelColor (light)
-            # self.fill = QColor(118, 118, 128, 31)              # tertiarySystemFillColor (light)
-            self.hover_fill = QColor(0, 0, 0, 15)
-            self.pressed_fill = QColor(0, 0, 0, 26)
-            # self.icon_secondary = QColor(142, 142, 147)
-            self.success = QColor(52, 199, 89)                 # systemGreenColor (light)
-            self.error = QColor(255, 59, 48)                   # systemRedColor (light)
-
-    @staticmethod
-    def rgba(color: QColor) -> str:
-        return f"rgba({color.red()}, {color.green()}, {color.blue()}, {color.alphaF():.3f})"
-
-
-def _detect_dark_mode() -> bool:
-    app = QApplication.instance()
-    if app is None:
-        return False
-    try:
-        scheme = app.styleHints().colorScheme()
-        if scheme == Qt.ColorScheme.Dark:
-            return True
-        if scheme == Qt.ColorScheme.Light:
-            return False
-    except Exception:
-        pass
-    # Older Qt without colorScheme(): infer from the window background.
-    return app.palette().color(QPalette.ColorRole.Window).lightness() < 128
-
-
-_theme_instance: "Theme | None" = None
-
-
-def get_theme() -> Theme:
-    """Lazily computed, cached for the process lifetime. Call refresh_theme()
-    if you need to react to a live OS theme switch."""
-    global _theme_instance
-    if _theme_instance is None:
-        _theme_instance = Theme(_detect_dark_mode())
-    return _theme_instance
-
-
-def refresh_theme() -> Theme:
-    global _theme_instance
-    _theme_instance = Theme(_detect_dark_mode())
-    return _theme_instance
 
 
 # ============================================================
@@ -543,164 +427,6 @@ class ProgressStepsView(QWidget):
         self._rows = []
         self.stack_layout.addStretch(1)
         self.current_row = None
-
-
-# ============================================================
-# URL validator (url_validator.py — unchanged, no Cocoa dependency)
-# ============================================================
-
-class YtValidator:
-
-    _URL_RE = re_compile(r"^(https?://)?(([a-zA-Z0-9-]+\.)?youtube\.com|youtu\.be)/.+$")
-
-    def __init__(self, url: str):
-        self.url = url
-        self.query = parse_qs(urlparse(url).query)
-
-    def is_valid_url(self):
-        return bool(self._URL_RE.match(self.url))
-
-    def is_playlist(self):
-        return "list" in self.query
-
-    def is_content(self):
-        return "v" in self.query
-
-    @staticmethod
-    def remove_playlist_from_query(url):
-        parsed = urlparse(url)
-        query = parse_qs(parsed.query)
-        query.pop("list", None)
-        new_query = urlencode(query, doseq=True)
-        return urlunparse(parsed._replace(query=new_query))
-
-
-# ============================================================
-# utils.py — unchanged
-# ============================================================
-
-def human_size(num_bytes):
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if num_bytes < 1000:
-            return f"{num_bytes:.1f} {unit}"
-        num_bytes /= 1000
-
-
-# ============================================================
-# URL row (url_row.py port)
-# ============================================================
-
-class URLRowView(QWidget):
-
-    ACCENT = "#0A84FF"
-
-    def __init__(self, on_extract, parent=None):
-        super().__init__(parent)
-        self.setFixedHeight(32)
-
-        theme = get_theme()
-
-        self.container = QFrame(self)
-        self.container.setObjectName("urlContainer")
-
-        self.url_inline_label = QLabel("URL")
-
-        self.url_field = QLineEdit()
-        self.url_field.setFrame(False)
-        self.url_field.setPlaceholderText("Paste a video link")
-        self.url_field.setStyleSheet("background: transparent; border: none;")
-        self.url_field.returnPressed.connect(on_extract)
-
-        self.paste_button = QToolButton()
-        self.paste_button.setIcon(create_symbol("doc.on.clipboard", theme.icon_secondary))
-        self.paste_button.setIconSize(QSize(16, 16))
-        self.paste_button.setAutoRaise(True)
-        self.paste_button.setToolTip("Paste")
-        self.paste_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.paste_button.clicked.connect(self._paste_url)
-
-        row = QHBoxLayout(self.container)
-        row.setContentsMargins(10, 0, 10, 0)
-        row.setSpacing(10)
-        row.addWidget(self.url_inline_label)
-        row.addWidget(self.url_field, 1)
-        row.addWidget(self.paste_button)
-
-        self.extract_button = QPushButton("Extract")
-        self.extract_button.setFixedSize(76, 32)
-        self.extract_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.extract_button.setDefault(True)
-        self.extract_button.clicked.connect(on_extract)
-        extract_font = self.extract_button.font()
-        extract_font.setWeight(QFont.Weight.DemiBold)
-        self.extract_button.setFont(extract_font)
-
-        outer = QHBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(12)
-        outer.addWidget(self.container, 1)
-        outer.addWidget(self.extract_button, 0)
-        self.apply_theme()
-
-    def apply_theme(self):
-        theme = get_theme()
-        self.container.setStyleSheet(
-            "#urlContainer {"
-            f"  background-color: {Theme.rgba(theme.fill)};"
-            f"  border: 1px solid {Theme.rgba(theme.separator)};"
-            "  border-radius: 6px;"
-            "}"
-        )
-        self.url_inline_label.setStyleSheet(
-            f"color: {Theme.rgba(theme.secondary_text)}; border: none; background: transparent;"
-        )
-        self.paste_button.setStyleSheet(
-            "QToolButton {"
-            "  border: none;"
-            "  background: transparent;"
-            "  border-radius: 4px;"
-            "  padding: 3px;"
-            "}"
-            f"QToolButton:hover {{ background-color: {Theme.rgba(theme.hover_fill)}; }}"
-            f"QToolButton:pressed {{ background-color: {Theme.rgba(theme.pressed_fill)}; }}"
-        )
-        self.extract_button.setStyleSheet(
-            "QPushButton {"
-            f"  background-color: {self.ACCENT};"
-            "  color: white;"
-            "  border: none;"
-            "  border-radius: 6px;"
-            "}"
-            "QPushButton:hover:!disabled { background-color: #3399FF; }"
-            "QPushButton:pressed:!disabled { background-color: #0764C4; }"
-            "QPushButton:disabled {"
-            f"  background-color: {Theme.rgba(theme.fill)};"
-            f"  color: {Theme.rgba(theme.secondary_text)};"
-            "}"
-        )
-
-    def _paste_url(self):
-        text = QGuiApplication.clipboard().text()
-        if not text:
-            QApplication.beep()
-            return
-        validator = YtValidator(text)
-        if not validator.is_valid_url():
-            QApplication.beep()
-            return
-        self.url_field.setText(text)
-
-    def url_value(self):
-        return self.url_field.text()
-
-    def clear_url(self):
-        self.url_field.clear()
-
-    def set_enabled(self, enabled):
-        self.url_field.setEnabled(enabled)
-        self.paste_button.setEnabled(enabled)
-        self.extract_button.setEnabled(enabled)
-
 
 # ============================================================
 # Menu bar (menu.py port — simplified: no Preferences/Logs/Sidebar)
