@@ -116,7 +116,7 @@ from PyQt6.QtWidgets import (
 
 # The downloader service is kept as-is and referenced later — see module
 # docstring above. This import is left in place on purpose.
-from downloader import Downloader
+from services.downloader import Downloader
 
 
 # ============================================================
@@ -946,10 +946,6 @@ class ProgressStatus(Enum):
 
 
 class Progresser:
-    """Bridges the (unchanged) Downloader service's callbacks into the UI.
-    Downloader calls these from a background thread; `handler` is expected
-    to marshal onto the GUI thread — see WorkerSignals below."""
-
     def __init__(self, handler):
         self.handler = handler
         self.downloading = False
@@ -958,7 +954,7 @@ class Progresser:
     def download(self, msg):
         self.downloading = True
         self.handler((ProgressStatus.UPDATE, "Downloading", msg, None))
-
+    
     def finish_download(self, msg):
         self.downloading = False
         self.handler((ProgressStatus.SUCCESS, "Download Completed", msg, None))
@@ -972,23 +968,33 @@ class Progresser:
         self.handler((ProgressStatus.SUCCESS, "Post Processing Completed", msg, None))
 
 
-class ConsoleLogger:
-    """Stand-in for the old LogWindowController-backed logger (log viewer
-    window is out of scope for this port). Keeps the same interface
-    (.reset/.info/.warning/.error) so the downloader service doesn't need
-    to change."""
+class DownloaderLogger:
+    def __init__(self, handler):
+        self.content = ""
+        self.handler = handler
 
-    def reset(self):
-        pass
+    def output(self, text):
+        self.content += text + "\n"
+
+        if "--dev" in __import__("sys").argv:
+            print(text)
+
+        self.handler(self.content)
+
+    def debug(self, msg):
+        self.output(f"{msg}")
 
     def info(self, msg):
-        print(f"[INFO] {msg}")
+        self.output(f"[INFO] {msg}")
 
     def warning(self, msg):
-        print(f"[WARN] {msg}")
+        self.output(f"[WARNING] {msg}")
 
     def error(self, msg):
-        print(f"[ERROR] {msg}")
+        self.output(f"[ERROR] {msg}")
+
+    def reset(self):
+        self.content = ""
 
 
 class WorkerSignals(QObject):
@@ -1008,7 +1014,7 @@ class WorkerSignals(QObject):
 class MainWindow(QMainWindow):
 
     # Settings window / UserDefaults are out of scope for this port.
-    DEFAULT_NORMALIZATION = "none"
+    DEFAULT_NORMALIZATION = "High"
 
     def __init__(self):
         super().__init__()
@@ -1016,7 +1022,7 @@ class MainWindow(QMainWindow):
         self.resize(840, 620)
         self.setMinimumSize(600, 360)
 
-        self.logger = ConsoleLogger()
+        self.logger = DownloaderLogger(lambda x: print(x))
         self.signals = WorkerSignals()
         self.progresser = Progresser(self.signals.progress.emit)
         self.downloader = Downloader(self.logger, self.progresser)
@@ -1128,7 +1134,7 @@ class MainWindow(QMainWindow):
 
             self.signals.extract_finished.emit(path)
         except Exception as e:
-            self.logger.error(f"Error: {e}")
+            self.logger.error(f"Error {type(e).__name__}: {e}")
             self.signals.progress.emit((ProgressStatus.ERROR, "Error", str(e), None))
             self.signals.busy.emit(False)
 
