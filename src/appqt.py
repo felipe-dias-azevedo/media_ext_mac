@@ -28,15 +28,10 @@ Deliberately left out (per instructions):
 SF Symbols replacement
 -----------------------
 PyQt has no built-in equivalent of SF Symbols (that was a macOS/AppKit-only
-API — NSImage.imageWithSystemSymbolName_). Icons here come from qtawesome
-(pip install qtawesome), which bundles Font Awesome/Material Design Icons as
-fonts and renders them through its own QIconEngine — vector, so they stay
-crisp at any size and on HiDPI/Retina screens, and tintable via `color=`
-the same way NSImage.contentTintColor was used. If qtawesome isn't
-installed, create_symbol() automatically falls back to a small hand-drawn
-QIconEngine (see SymbolIconEngine) so the app still runs with just PyQt6 —
-that fallback also paints live at whatever size Qt requests rather than
-baking one fixed-size QPixmap, so it doesn't go blurry on HiDPI either.
+API — NSImage.imageWithSystemSymbolName_). Icons come from qtawesome, which
+bundles Font Awesome/Material Design Icons as fonts and renders vector icons
+that stay crisp at any size and on HiDPI/Retina screens. Install it with
+`pip install qtawesome`.
 
 Dark/light mode
 ----------------
@@ -55,16 +50,16 @@ are kept exactly as they were. Drop your existing `services/downloader.py`
 next to this file and it will be picked up unchanged.
 
 Run:
-    pip install PyQt6 qtawesome   # qtawesome is optional but recommended
+    pip install PyQt6 qtawesome
     python3 media_ext.py
 """
 
-import math
 import os
 import sys
 import threading
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from re import compile as re_compile
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
@@ -83,18 +78,14 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtGui import (
     QAction,
-    QBrush,
     QColor,
     QFont,
     QGuiApplication,
     QIcon,
-    QIconEngine,
     QKeySequence,
     QPainter,
-    QPainterPath,
     QPalette,
     QPen,
-    QPixmap,
 )
 from PyQt6.QtWidgets import (
     QApplication,
@@ -118,27 +109,21 @@ from PyQt6.QtWidgets import (
 # docstring above. This import is left in place on purpose.
 from services.downloader import Downloader
 
+_APP_ICON_PATH = Path(__file__).resolve().parent.parent / "icon" / "icon_1024.png"
+
+
+def _app_icon() -> QIcon:
+    return QIcon(str(_APP_ICON_PATH))
+
 
 # ============================================================
 # Symbols (SF Symbols replacement)
 #
-# PyQt has no built-in SF Symbols equivalent, so real vector icons come from
-# qtawesome (bundles Font Awesome / Material Design Icons as fonts, renders
-# crisply at any size/DPI via its own QIconEngine — pip install qtawesome).
-# If qtawesome isn't installed, create_symbol() falls back to a hand-drawn
-# QIconEngine below, so the app still runs with just PyQt6. The fallback
-# paints live at whatever size Qt actually requests (rather than baking one
-# fixed-size QPixmap), so it stays sharp on HiDPI/Retina screens too — a
-# baked small QPixmap stretched onto a HiDPI screen is what made the first
-# pass look blurry.
+# PyQt has no built-in SF Symbols equivalent, so icons come from qtawesome,
+# which renders Font Awesome / Material Design Icons as scalable font glyphs.
 # ============================================================
 
-try:
-    import qtawesome as qta
-    _HAS_QTA = True
-except ImportError:  # qtawesome is optional; hand-drawn fallback covers this
-    qta = None
-    _HAS_QTA = False
+import qtawesome as qta
 
 # Maps our semantic symbol names (matching the old SF Symbol names) to
 # Font Awesome 5 Solid glyph names.
@@ -151,171 +136,18 @@ _QTA_NAMES = {
 }
 
 
-def _paint_checkmark_circle_fill(p: QPainter, rect: QRectF, color: QColor):
-    p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QBrush(color))
-    p.drawEllipse(rect)
-
-    w = rect.width()
-    pen = QPen(QColor("white"))
-    pen.setWidthF(max(1.4, w * 0.12))
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-    p.setPen(pen)
-
-    path = QPainterPath()
-    path.moveTo(rect.left() + w * 0.27, rect.top() + w * 0.52)
-    path.lineTo(rect.left() + w * 0.44, rect.top() + w * 0.68)
-    path.lineTo(rect.left() + w * 0.75, rect.top() + w * 0.32)
-    p.drawPath(path)
-
-
-def _paint_xmark_circle_fill(p: QPainter, rect: QRectF, color: QColor):
-    p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QBrush(color))
-    p.drawEllipse(rect)
-
-    w = rect.width()
-    pen = QPen(QColor("white"))
-    pen.setWidthF(max(1.4, w * 0.12))
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-    p.setPen(pen)
-
-    m = w * 0.30
-    p.drawLine(QPoint(int(rect.left() + m), int(rect.top() + m)), QPoint(int(rect.right() - m), int(rect.bottom() - m)))
-    p.drawLine(QPoint(int(rect.right() - m), int(rect.top() + m)), QPoint(int(rect.left() + m), int(rect.bottom() - m)))
-
-
-def _paint_doc_on_clipboard(p: QPainter, rect: QRectF, color: QColor):
-    w, h = rect.width(), rect.height()
-    pen = QPen(color)
-    pen.setWidthF(max(1.3, w * 0.09))
-    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-    p.setPen(pen)
-    p.setBrush(Qt.BrushStyle.NoBrush)
-
-    back = QRectF(rect.left() + w * 0.32, rect.top() + h * 0.08, w * 0.54, h * 0.62)
-    p.drawRoundedRect(back, w * 0.05, w * 0.05)
-
-    body = QRectF(rect.left() + w * 0.14, rect.top() + h * 0.30, w * 0.58, h * 0.62)
-    p.drawRoundedRect(body, w * 0.06, w * 0.06)
-
-    clip = QRectF(rect.left() + w * 0.30, rect.top() + h * 0.20, w * 0.24, h * 0.13)
-    p.setBrush(QBrush(color))
-    p.drawRoundedRect(clip, w * 0.03, w * 0.03)
-
-
-def _paint_gearshape(p: QPainter, rect: QRectF, color: QColor):
-    cx, cy = rect.center().x(), rect.center().y()
-    r_outer = rect.width() * 0.46
-    r_inner = rect.width() * 0.19
-    teeth = 8
-
-    path = QPainterPath()
-    for i in range(teeth * 2):
-        ang = math.pi * i / teeth
-        r = r_outer if i % 2 == 0 else r_outer * 0.78
-        x, y = cx + r * math.cos(ang), cy + r * math.sin(ang)
-        path.moveTo(x, y) if i == 0 else path.lineTo(x, y)
-    path.closeSubpath()
-
-    p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QBrush(color))
-    p.drawPath(path)
-
-    # Punch the center hole out to transparent.
-    p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
-    p.setBrush(QBrush(QColor(0, 0, 0, 255)))
-    p.drawEllipse(QRectF(cx - r_inner, cy - r_inner, r_inner * 2, r_inner * 2))
-    p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-
-
-def _paint_chevron_down(p: QPainter, rect: QRectF, color: QColor):
-    w = rect.width()
-    pen = QPen(color)
-    pen.setWidthF(max(1.5, w * 0.14))
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-    p.setPen(pen)
-
-    path = QPainterPath()
-    path.moveTo(rect.left() + w * 0.22, rect.top() + w * 0.36)
-    path.lineTo(rect.center().x(), rect.top() + w * 0.64)
-    path.lineTo(rect.right() - w * 0.22, rect.top() + w * 0.36)
-    p.drawPath(path)
-
-
-class SymbolIconEngine(QIconEngine):
-    """Resolution-independent fallback icon engine: paints live into
-    whatever rect/QPainter Qt hands it (correct DPI every time), instead of
-    baking a single fixed-size QPixmap up front. Only used when qtawesome
-    isn't installed."""
-
-    _PAINTERS = {
-        "checkmark.circle.fill": _paint_checkmark_circle_fill,
-        "xmark.circle.fill": _paint_xmark_circle_fill,
-        "doc.on.clipboard": _paint_doc_on_clipboard,
-        "gearshape": _paint_gearshape,
-        "chevron.down": _paint_chevron_down,
-    }
-
-    def __init__(self, name: str, color: QColor):
-        super().__init__()
-        self._name = name
-        self._color = QColor(color)
-
-    def paint(self, painter: QPainter, rect, mode, state):
-        color = QColor(self._color)
-        if mode == QIcon.Mode.Disabled:
-            color.setAlpha(color.alpha() // 2)
-        painter.save()
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        r = QRectF(rect).adjusted(1, 1, -1, -1)
-        paint_fn = self._PAINTERS.get(self._name)
-        if paint_fn is not None:
-            paint_fn(painter, r, color)
-        else:
-            # Unknown symbol name: a plain dot rather than a crash.
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(color))
-            painter.drawEllipse(r.adjusted(r.width() * 0.3, r.height() * 0.3, -r.width() * 0.3, -r.height() * 0.3))
-        painter.restore()
-
-    def pixmap(self, size: QSize, mode, state) -> QPixmap:
-        pm = QPixmap(size)
-        pm.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pm)
-        self.paint(painter, pm.rect(), mode, state)
-        painter.end()
-        return pm
-
-    def clone(self) -> "SymbolIconEngine":
-        return SymbolIconEngine(self._name, self._color)
-
-
 _symbol_icon_cache: dict = {}
 
 
 def create_symbol(name: str, color: "QColor | None" = None) -> QIcon:
-    """Returns a resolution-independent QIcon for one of this app's symbol
-    names. Prefers qtawesome (crisp Font Awesome glyphs); falls back to the
-    hand-drawn QIconEngine above if qtawesome isn't installed."""
+    """Returns a cached qtawesome icon for one of this app's symbol names."""
     color = QColor(color) if color is not None else QColor(142, 142, 147)
     cache_key = (name, color.name(QColor.NameFormat.HexArgb))
     cached = _symbol_icon_cache.get(cache_key)
     if cached is not None:
         return cached
 
-    icon = None
-    if _HAS_QTA and name in _QTA_NAMES:
-        try:
-            icon = qta.icon(_QTA_NAMES[name], color=color)
-        except Exception:
-            icon = None  # fall through to hand-drawn engine below
-
-    if icon is None:
-        icon = QIcon(SymbolIconEngine(name, color))
-
+    icon = qta.icon(_QTA_NAMES[name], color=color)
     _symbol_icon_cache[cache_key] = icon
     return icon
 
@@ -887,15 +719,24 @@ def _focused_widget_action(window, text, shortcut, method_name):
     return action
 
 
+def _show_about_dialog(window):
+    icon = _app_icon()
+    dialog = QMessageBox(window)
+    dialog.setWindowTitle("About MediaExt")
+    dialog.setWindowIcon(icon)
+    dialog.setText("MediaExt\nA small media-extraction utility.")
+    dialog.setIconPixmap(icon.pixmap(QSize(64, 64)))
+    dialog.setStandardButtons(QMessageBox.StandardButton.Ok)
+    dialog.exec()
+
+
 def build_menu_bar(window: QMainWindow):
     menubar = window.menuBar()
 
     file_menu = menubar.addMenu("&File")
 
     about_action = QAction("About MediaExt", window)
-    about_action.triggered.connect(
-        lambda: QMessageBox.about(window, "About MediaExt", "MediaExt\nA small media-extraction utility.")
-    )
+    about_action.triggered.connect(lambda: _show_about_dialog(window))
     file_menu.addAction(about_action)
     file_menu.addSeparator()
 
@@ -1018,6 +859,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        self.setWindowIcon(_app_icon())
         self.setWindowTitle("Media.Ext")
         self.resize(840, 620)
         self.setMinimumSize(600, 360)
@@ -1191,6 +1033,7 @@ class MainWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("MediaExt")
+    app.setWindowIcon(_app_icon())
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
