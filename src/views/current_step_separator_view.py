@@ -1,45 +1,18 @@
-import objc
 
-from AppKit import (
-    NSLayoutConstraint,
-    NSBox,
-    NSColor,
-    NSMakeRect,
-    NSView,
-    NSBoxCustom,
+from PyQt6.QtWidgets import (
+    QFrame,
 )
 
+from utils.theme import Theme, get_theme
 
-# ============================================================
-# Separator
-# ============================================================
+class CurrentStepSeparator(QFrame):
+    """1px hairline row separator."""
 
-class CurrentStepSeparator(NSView):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.Shape.HLine)
+        self.setFixedHeight(1)
+        self.apply_theme()
 
-    def init(self):
-        self = objc.super(CurrentStepSeparator, self).init()
-        if self is None:
-            return None
-
-        line = NSBox.alloc().initWithFrame_(NSMakeRect(0, 0, 0, 1))
-        line.setBoxType_(NSBoxCustom)
-        line.setBorderWidth_(0.0)
-        line.setFillColor_(NSColor.separatorColor())
-        line.setTranslatesAutoresizingMaskIntoConstraints_(False)
-
-        self.addSubview_(line)
-
-        NSLayoutConstraint.activateConstraints_([
-            line.leadingAnchor().constraintEqualToAnchor_(
-                self.leadingAnchor()
-            ),
-            line.trailingAnchor().constraintEqualToAnchor_(
-                self.trailingAnchor()
-            ),
-            line.centerYAnchor().constraintEqualToAnchor_(
-                self.centerYAnchor()
-            ),
-            line.heightAnchor().constraintEqualToConstant_(1),
-        ])
-
-        return self
+    def apply_theme(self):
+        self.setStyleSheet(f"background-color: {Theme.rgba(get_theme().separator)}; border: none;")
