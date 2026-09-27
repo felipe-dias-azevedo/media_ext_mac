@@ -47,6 +47,13 @@ def build_menu_bar(window: QMainWindow):
     file_menu.addAction(about_action)
     file_menu.addSeparator()
 
+    preferences_action = QAction("Preferences…", window)
+    preferences_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+    preferences_action.setShortcut(QKeySequence("Ctrl+,"))
+    preferences_action.triggered.connect(window.show_preferences)
+    file_menu.addAction(preferences_action)
+    file_menu.addSeparator()
+
     close_action = QAction("Close Window", window)
     close_action.setShortcut(QKeySequence("Ctrl+W"))
     close_action.triggered.connect(window.close)

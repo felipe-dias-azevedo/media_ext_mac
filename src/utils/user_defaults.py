@@ -1,5 +1,6 @@
 from enum import Enum
-from Cocoa import NSUserDefaults
+
+from PyQt6.QtCore import QSettings
 
 
 class Normalization(Enum):
@@ -15,10 +16,22 @@ class UserDefaults():
     def _getDefaultNormalization():
         return NORMALIZATION_OPTIONS[-1]
 
+    @staticmethod
+    def _settings():
+        return QSettings(
+            QSettings.Format.IniFormat,
+            QSettings.Scope.UserScope,
+            "MediaExt",
+            "MediaExt",
+        )
+
     def getNormalization(self) -> str:
-        defaults = NSUserDefaults.standardUserDefaults()
-        return defaults.stringForKey_(NORMALIZATION_KEY) or self._getDefaultNormalization().value
+        default = self._getDefaultNormalization().value
+        normalization = self._settings().value(NORMALIZATION_KEY, default)
+        options = [option.value for option in NORMALIZATION_OPTIONS]
+        return normalization if normalization in options else default
     
     def setNormalization(self, normalization: str):
-        defaults = NSUserDefaults.standardUserDefaults()
-        defaults.setObject_forKey_(normalization, NORMALIZATION_KEY)
+        settings = self._settings()
+        settings.setValue(NORMALIZATION_KEY, normalization)
+        settings.sync()

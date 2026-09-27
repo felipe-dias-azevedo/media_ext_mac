@@ -16,13 +16,11 @@ What's included (ported 1:1, just re-platformed):
   - utils.human_size      -> unchanged, no Cocoa dependency to begin with
   - menu.py                -> simplified QMenuBar (File / Edit / Window / Help)
   - app.py                 -> MainWindow, replacing AppDelegate + RootSplitVC + ContentVC
+    - settings.py            -> Qt Preferences window backed by QSettings
+    - log viewer             -> retained Qt log window
 
 Deliberately left out (per instructions):
   - History sidebar (SidebarVC) and the "add row to sidebar" step after saving
-  - Log viewer window (LogWindowController) — replaced with a plain console
-    logger that keeps the same .info()/.warning()/.error()/.reset() interface
-  - Settings window (SettingsWindowController) / UserDefaults — replaced with
-    a single DEFAULT_NORMALIZATION constant on MainWindow
   - macOS UNUserNotificationCenter notifications
 
 SF Symbols replacement
@@ -66,6 +64,8 @@ from views.menu import build_menu_bar
 from views.progress import ProgressStepsView
 from views.url_row import URLRowView
 from views.log_window_qt import LogWindow
+from views.settings_qt import SettingsWindow
+from utils.user_defaults import UserDefaults
 
 from PyQt6.QtCore import (
     QAbstractAnimation,
@@ -188,9 +188,6 @@ class WorkerSignals(QObject):
 
 class MainWindow(QMainWindow):
 
-    # Settings window / UserDefaults are out of scope for this port.
-    DEFAULT_NORMALIZATION = "High"
-
     def __init__(self):
         super().__init__()
         self.setWindowIcon(app_icon())
@@ -199,6 +196,8 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(600, 360)
 
         self.log_window = LogWindow(self)
+        self.user_defaults = UserDefaults()
+        self.settings_window = SettingsWindow(self.user_defaults, self)
         self.signals = WorkerSignals()
         self.signals.log_updated.connect(self.log_window.set_logs)
         self.logger = DownloaderLogger(self.signals.log_updated.emit)
@@ -253,6 +252,11 @@ class MainWindow(QMainWindow):
         self.log_window.raise_()
         self.log_window.activateWindow()
 
+    def show_preferences(self):
+        self.settings_window.show()
+        self.settings_window.raise_()
+        self.settings_window.activateWindow()
+
     # ----- extract flow -----
 
     def _extract(self):
@@ -306,7 +310,7 @@ class MainWindow(QMainWindow):
 
     def _download_thread(self, url):
         try:
-            normalization = self.DEFAULT_NORMALIZATION
+            normalization = self.user_defaults.getNormalization()
             normalization_text = f"Using normalization: {normalization}"
             self.logger.info(normalization_text)
             self.signals.progress.emit((ProgressStatus.ADD, "Normalization", normalization_text, "gearshape"))
