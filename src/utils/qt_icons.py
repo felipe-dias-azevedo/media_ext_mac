@@ -8,10 +8,10 @@ import qtawesome as qta
 _APP_ICON_PATH = Path(__file__).resolve().parents[2] / "icon" / "icon_1024.png"
 
 _QTA_NAMES = {
-    "checkmark.circle.fill": "fa5s.check-circle",
-    "xmark.circle.fill": "fa5s.times-circle",
-    "doc.on.clipboard": "fa5s.paste",
-    "gearshape": "fa5s.cog",
+    "checkmark.circle.fill": "fa6s.circle-check",
+    "xmark.circle.fill": "fa6s.circle-xmark",
+    "doc.on.clipboard": "fa6.paste",
+    "gearshape": "fa6s.gear",
     "chevron.down": "fa5s.chevron-down",
 }
 

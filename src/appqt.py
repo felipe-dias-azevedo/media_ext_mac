@@ -190,7 +190,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowIcon(app_icon())
+        # self.setWindowIcon(app_icon()) TODO: check if on windows this is still necessary considering build embeds .ico
         self.setWindowTitle("Media.Ext")
         self.resize(840, 620)
         self.setMinimumSize(600, 360)
@@ -378,7 +378,6 @@ class MainWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("MediaExt")
-    app.setWindowIcon(app_icon())
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

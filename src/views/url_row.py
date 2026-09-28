@@ -51,7 +51,7 @@ class URLRowView(QWidget):
         self.paste_button.clicked.connect(self._paste_url)
 
         row = QHBoxLayout(self.container)
-        row.setContentsMargins(10, 0, 10, 0)
+        row.setContentsMargins(10, 0, 1, 0)
         row.setSpacing(10)
         row.addWidget(self.url_inline_label)
         row.addWidget(self.url_field, 1)
@@ -90,7 +90,7 @@ class URLRowView(QWidget):
             "  border: none;"
             "  background: transparent;"
             "  border-radius: 4px;"
-            "  padding: 3px;"
+            "  padding: 4px;"
             "}"
             f"QToolButton:hover {{ background-color: {Theme.rgba(theme.hover_fill)}; }}"
             f"QToolButton:pressed {{ background-color: {Theme.rgba(theme.pressed_fill)}; }}"
