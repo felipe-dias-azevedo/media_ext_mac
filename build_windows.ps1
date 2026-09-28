@@ -7,8 +7,13 @@ if ($env:GITHUB_REF_NAME) {
 }
 
 $VERSION = $VERSION -replace '^v', ''
-$V = $VERSION -split '\.'
-$VERSION_INFO = "$($V[0]),$($V[1]),$($V[2]),0"
+if ($VERSION -match '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:[-+][0-9A-Za-z.-]+)?$') {
+  $VERSION_INFO = "$($Matches[1]),$($Matches[2]),$($Matches[3]),0"
+} else {
+  Write-Warning "Ref '$VERSION' is not a release version; using 0.0.0 for this build."
+  $VERSION = '0.0.0'
+  $VERSION_INFO = '0,0,0,0'
+}
 
 @"
 VSVersionInfo(
