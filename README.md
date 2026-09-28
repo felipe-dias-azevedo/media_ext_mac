@@ -49,5 +49,5 @@ python src/app.py
 ### Build .app
 
 ```sh
-source ./build.sh
+source ./build_mac.sh
 ```

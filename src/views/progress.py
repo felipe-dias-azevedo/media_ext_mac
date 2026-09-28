@@ -1,44 +1,35 @@
 from dataclasses import dataclass
 
-import objc
-
-from AppKit import (
-    NSAnimationContext,
-    NSLayoutAttributeCenterY,
-    NSLayoutConstraint,
-    NSBox,
-    NSBoxSeparator,
-    NSColor,
-    NSControlSizeSmall,
-    NSFont,
-    NSFontWeightMedium,
-    NSFontWeightSemibold,
-    NSImage,
-    NSImageSymbolConfiguration,
-    NSImageView,
-    NSLeftTextAlignment,
-    NSMakeRect,
-    NSMakeSize,
-    NSProgressIndicator,
-    NSProgressIndicatorStyleSpinning,
-    NSTextField,
-    NSStackView,
-    NSStackViewDistributionFill,
-    NSStackViewGravityCenter,
-    NSStackViewGravityLeading,
-    NSUserInterfaceLayoutOrientationHorizontal,
-    NSUserInterfaceLayoutOrientationVertical,
-    NSView,
-    NSBoxCustom,
-    NSLineBreakByTruncatingTail
+from PyQt6.QtCore import (
+    QAbstractAnimation,
+    QEasingCurve,
+    QParallelAnimationGroup,
+    QPropertyAnimation,
+    Qt,
 )
-from utils.symbols import create_symbol
-from views.current_step_separator_view import CurrentStepSeparator
+from PyQt6.QtGui import (
+    QFont,
+    QIcon,
+    QPainter,
+)
+from PyQt6.QtWidgets import (
+    QFrame,
+    QGraphicsOpacityEffect,
+    QHBoxLayout,
+    QLabel,
+    QStackedLayout,
+    QVBoxLayout,
+    QWidget,
+)
+
+from utils.qt_icons import create_symbol
+from utils.theme import Theme, get_theme
+from views.current_step_separator import CurrentStepSeparator
+from views.spinner import SpinnerWidget
 
 
-# ============================================================
-# Model
-# ============================================================
+# TODO: add an optional button on the right side with custom lambda functionality
+
 
 @dataclass
 class ProgressStep:
@@ -48,402 +39,236 @@ class ProgressStep:
     loading: bool = False
     success: bool | None = None
 
-# ============================================================
-# Row
-# ============================================================
 
-class StepRowView(NSView):
+class IconView(QWidget):
+    """Paints a QIcon live into its own rect on every paintEvent, instead of
+    baking one fixed-resolution QPixmap. Qt supplies the correctly scaled
+    QPainter for the current screen, so this stays crisp on HiDPI/Retina —
+    unlike a QLabel.setPixmap() with a pre-rendered small pixmap."""
 
-    # TODO: add an optional button on the right side with custom lambda functionality
+    def __init__(self, size: int = 18, parent=None):
+        super().__init__(parent)
+        self._icon: "QIcon | None" = None
+        self.setFixedSize(size, size)
 
-    def init(self):
-        self = objc.super(StepRowView, self).init()
-        if self is None:
-            return None
+    def set_icon(self, icon: QIcon):
+        self._icon = icon
+        self.update()
 
-        self.iconView = NSImageView.alloc().init()
+    def paintEvent(self, event):  # noqa: N802 (Qt override)
+        if self._icon is None:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._icon.paint(painter, self.rect())
+        painter.end()
 
-        self.spinner = NSProgressIndicator.alloc().init()
-        self.spinner.setStyle_(NSProgressIndicatorStyleSpinning)
-        self.spinner.setControlSize_(NSControlSizeSmall)
-        self.spinner.setDisplayedWhenStopped_(False)
 
-        self.titleLabel = NSTextField.labelWithString_("")
-        self.titleLabel.setFont_(
-            NSFont.systemFontOfSize_weight_(
-                NSFont.systemFontSize(),
-                NSFontWeightSemibold,
-            )
-        )
-        self.titleLabel.setAlignment_(NSLeftTextAlignment)
+class StepRowView(QWidget):
 
-        self.descriptionLabel = NSTextField.labelWithString_("")
-        self.descriptionLabel.setFont_(
-            NSFont.systemFontOfSize_(NSFont.smallSystemFontSize())
-        )
-        self.descriptionLabel.setTextColor_(
-            NSColor.secondaryLabelColor()
-        )
-        self.descriptionLabel.setAlignment_(NSLeftTextAlignment)
-        self.descriptionLabel.setLineBreakMode_(NSLineBreakByTruncatingTail)
+    def __init__(self, parent=None):
+        super().__init__(parent)
 
-        self.textStack = NSStackView.stackViewWithViews_([
-            self.titleLabel,
-            self.descriptionLabel,
-        ])
+        self.icon_view = IconView(18)
 
-        self.textStack.setOrientation_(
-            NSUserInterfaceLayoutOrientationVertical
-        )
+        self.spinner = SpinnerWidget(16)
 
-        self.textStack.setAlignment_(NSStackViewGravityLeading)
-        self.textStack.setDistribution_(NSStackViewDistributionFill)
-        self.textStack.setSpacing_(2)
+        self.leading = QWidget()
+        self.leading.setFixedSize(18, 18)
+        leading_stack = QStackedLayout(self.leading)
+        leading_stack.setContentsMargins(0, 0, 0, 0)
+        leading_stack.addWidget(self.icon_view)
+        leading_stack.addWidget(self.spinner)
+        self._leading_stack = leading_stack
 
-        self.leadingContainer = NSView.alloc().init()
-        self.leadingContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.title_label = QLabel()
+        title_font = self.title_label.font()
+        title_font.setWeight(QFont.Weight.DemiBold)
+        self.title_label.setFont(title_font)
 
-        self.leadingContainer.addSubview_(self.iconView)
-        self.leadingContainer.addSubview_(self.spinner)
+        self._symbol_name = None
+        self.description_label = QLabel()
+        desc_font = self.description_label.font()
+        desc_font.setPointSize(max(desc_font.pointSize() - 1, 9))
+        self.description_label.setFont(desc_font)
+        self.description_label.hide()
 
-        self.addSubview_(self.leadingContainer)
-        self.addSubview_(self.textStack)
+        text_stack = QVBoxLayout()
+        text_stack.setSpacing(2)
+        text_stack.setContentsMargins(0, 0, 0, 0)
+        text_stack.addWidget(self.title_label)
+        text_stack.addWidget(self.description_label)
 
-        for view in (
-            self.leadingContainer,
-            self.textStack,
-            self.iconView,
-            self.spinner,
-        ):
-            view.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(10)
+        root.addWidget(self.leading, 0, Qt.AlignmentFlag.AlignVCenter)
+        root.addLayout(text_stack, 1)
 
-        NSLayoutConstraint.activateConstraints_([
+        self.leading.hide()
+        self.apply_theme()
 
-            self.leadingContainer.leadingAnchor().constraintEqualToAnchor_(
-                self.leadingAnchor()
-            ),
-            self.leadingContainer.centerYAnchor().constraintEqualToAnchor_(
-                self.centerYAnchor()
-            ),
-            self.leadingContainer.widthAnchor().constraintEqualToConstant_(18),
-            self.leadingContainer.heightAnchor().constraintEqualToConstant_(18),
+    def apply_theme(self):
+        theme = get_theme()
+        self.description_label.setStyleSheet(f"color: {Theme.rgba(theme.secondary_text)};")
+        if self._symbol_name:
+            if self._symbol_name == "checkmark.circle.fill":
+                color = theme.success
+            elif self._symbol_name == "xmark.circle.fill":
+                color = theme.error
+            else:
+                color = theme.icon_secondary
+            self.icon_view.set_icon(create_symbol(self._symbol_name, color))
 
-            self.iconView.centerXAnchor().constraintEqualToAnchor_(
-                self.leadingContainer.centerXAnchor()
-            ),
-            self.iconView.centerYAnchor().constraintEqualToAnchor_(
-                self.leadingContainer.centerYAnchor()
-            ),
+    # ----- state -----
 
-            self.spinner.centerXAnchor().constraintEqualToAnchor_(
-                self.leadingContainer.centerXAnchor()
-            ),
-            self.spinner.centerYAnchor().constraintEqualToAnchor_(
-                self.leadingContainer.centerYAnchor()
-            ),
-
-            self.textStack.leadingAnchor().constraintEqualToAnchor_constant_(
-                self.leadingContainer.trailingAnchor(),
-                10,
-            ),
-            self.textStack.trailingAnchor().constraintEqualToAnchor_(
-                self.trailingAnchor()
-            ),
-            self.textStack.topAnchor().constraintEqualToAnchor_(
-                self.topAnchor()
-            ),
-            self.textStack.bottomAnchor().constraintEqualToAnchor_(
-                self.bottomAnchor()
-            ),
-        ])
-
-        self.iconView.setHidden_(True)
-        self.spinner.setHidden_(True)
-        self.descriptionLabel.setHidden_(True)
-
-        return self
-
-    def setTitle_description_(self, title, description):
-
-        self.titleLabel.setStringValue_(title)
-
+    def set_title_description(self, title, description=None):
+        self.title_label.setText(title)
         if description:
-            self.descriptionLabel.setStringValue_(description)
-            self.descriptionLabel.setHidden_(False)
+            self.description_label.setText(str(description))
+            self.description_label.show()
         else:
-            self.descriptionLabel.setStringValue_("")
-            self.descriptionLabel.setHidden_(True)
+            self.description_label.clear()
+            self.description_label.hide()
 
-    def setIcon_(self, symbol_name):
+    def set_icon(self, symbol_name, color=None):
+        self.spinner.stop()
+        self.leading.show()
+        self._symbol_name = symbol_name
+        if color is None:
+            color = get_theme().icon_secondary
+        self.icon_view.set_icon(create_symbol(symbol_name, color))
+        self._leading_stack.setCurrentWidget(self.icon_view)
 
-        self.spinner.stopAnimation_(None)
-        self.spinner.setHidden_(True)
+    def set_loading(self):
+        self.leading.show()
+        self._leading_stack.setCurrentWidget(self.spinner)
+        self.spinner.start()
 
-        self.iconView.setHidden_(False)
-        self.iconView.setImage_(
-            create_symbol(symbol_name)
+    def set_success(self):
+        self.set_icon("checkmark.circle.fill", get_theme().success)
+
+    def set_error(self):
+        self.set_icon("xmark.circle.fill", get_theme().error)
+
+
+class ProgressStepsView(QWidget):
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.current_row = None
+        self._rows = []
+
+        self.background = QFrame(self)
+        self.background.setObjectName("progressBackground")
+
+        self.stack_layout = QVBoxLayout(self.background)
+        self.stack_layout.setContentsMargins(10, 10, 10, 10)
+        self.stack_layout.setSpacing(10)
+        self.stack_layout.addStretch(1)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self.background)
+        self.apply_theme()
+
+    def apply_theme(self):
+        theme = get_theme()
+        self.background.setStyleSheet(
+            "#progressBackground {"
+            f"  background-color: {Theme.rgba(theme.fill)};"
+            f"  border: 1px solid {Theme.rgba(theme.separator)};"
+            "  border-radius: 8px;"
+            "}"
         )
+        for item in self._rows:
+            if isinstance(item, (StepRowView, CurrentStepSeparator)):
+                item.apply_theme()
 
-        self.iconView.setContentTintColor_(
-            NSColor.secondaryLabelColor()
-        )
+    # ----- internal -----
 
-    def setLoading(self):
+    def _append_row_with_separator(self, row):
+        self.stack_layout.takeAt(self.stack_layout.count() - 1)  # drop trailing stretch
+        if self._rows:
+            separator = CurrentStepSeparator()
+            self.stack_layout.addWidget(separator)
+            self._rows.append(separator)
+        self.stack_layout.addWidget(row)
+        self._rows.append(row)
+        self.stack_layout.addStretch(1)
+        self._animate_insertion(row)
 
-        self.iconView.setHidden_(True)
+    def _animate_insertion(self, row):
+        row.setMaximumHeight(0)
+        effect = QGraphicsOpacityEffect(row)
+        effect.setOpacity(0.0)
+        row.setGraphicsEffect(effect)
+        row.adjustSize()
+        target_height = row.sizeHint().height()
 
-        self.spinner.setHidden_(False)
-        self.spinner.startAnimation_(None)
+        fade = QPropertyAnimation(effect, b"opacity", row)
+        fade.setDuration(200)
+        fade.setStartValue(0.0)
+        fade.setEndValue(1.0)
 
-    def setSuccess(self):
+        grow = QPropertyAnimation(row, b"maximumHeight", row)
+        grow.setDuration(200)
+        grow.setStartValue(0)
+        grow.setEndValue(target_height)
+        grow.setEasingCurve(QEasingCurve.Type.OutCubic)
+        grow.finished.connect(lambda: row.setMaximumHeight(16777215))
 
-        self.spinner.stopAnimation_(None)
-        self.spinner.setHidden_(True)
+        group = QParallelAnimationGroup(row)
+        group.addAnimation(fade)
+        group.addAnimation(grow)
+        group.start(QAbstractAnimation.DeletionPolicy.DeleteWhenStopped)
+        row._insert_anim = group  # keep a reference alive until it finishes
 
-        self.iconView.setHidden_(False)
+    # ----- public API (progress.py port) -----
 
-        self.iconView.setImage_(
-            create_symbol("checkmark.circle.fill")
-        )
-
-        self.iconView.setContentTintColor_(
-            NSColor.systemGreenColor()
-        )
-
-    def setError(self):
-
-        self.spinner.stopAnimation_(None)
-        self.spinner.setHidden_(True)
-
-        self.iconView.setHidden_(False)
-
-        self.iconView.setImage_(
-            create_symbol("xmark.circle.fill")
-        )
-
-        self.iconView.setContentTintColor_(
-            NSColor.systemRedColor()
-        )
-
-
-# ============================================================
-# Main View
-# ============================================================
-
-class ProgressStepsView(NSView):
-
-    def init(self):
-        self = objc.super(ProgressStepsView, self).init()
-        if self is None:
-            return None
-
-        self.currentRow = None
-
-        self.background = NSBox.alloc().init()
-        self.background.setBoxType_(NSBoxCustom)
-        self.background.setCornerRadius_(8.0)
-        self.background.setBorderWidth_(1.0)
-        self.background.setBorderColor_(NSColor.separatorColor())
-        self.background.setFillColor_(NSColor.tertiarySystemFillColor())
-        self.background.setContentViewMargins_(NSMakeSize(0.0, 0.0))
-
-        self.stack = NSStackView.alloc().init()
-
-        self.stack.setOrientation_(NSUserInterfaceLayoutOrientationVertical)
-        self.stack.setAlignment_(NSStackViewGravityLeading)
-        self.stack.setSpacing_(10)
-
-        bgContent = self.background.contentView()
-        bgContent.addSubview_(self.stack)
-        self.addSubview_(self.background)
-
-        self.background.setTranslatesAutoresizingMaskIntoConstraints_(False)
-        self.stack.setTranslatesAutoresizingMaskIntoConstraints_(False)
-
-        NSLayoutConstraint.activateConstraints_([
-
-            self.background.leadingAnchor().constraintEqualToAnchor_(
-                self.leadingAnchor()
-            ),
-            self.background.trailingAnchor().constraintEqualToAnchor_(
-                self.trailingAnchor()
-            ),
-            self.background.topAnchor().constraintEqualToAnchor_(
-                self.topAnchor()
-            ),
-            self.background.bottomAnchor().constraintEqualToAnchor_(
-                self.bottomAnchor()
-            ),
-
-            self.stack.leadingAnchor().constraintEqualToAnchor_constant_(
-                bgContent.leadingAnchor(),
-                10,
-            ),
-            self.stack.trailingAnchor().constraintEqualToAnchor_constant_(
-                bgContent.trailingAnchor(),
-                -10,
-            ),
-            self.stack.topAnchor().constraintEqualToAnchor_constant_(
-                bgContent.topAnchor(),
-                10,
-            ),
-            self.stack.bottomAnchor().constraintEqualToAnchor_constant_(
-                bgContent.bottomAnchor(),
-                -10,
-            ),
-        ])
-
-        return self
-
-    # --------------------------------------------------------
-
-    def _appendRowWithSeparator_(self, row):
-
-        if self.stack.arrangedSubviews():
-            separator = CurrentStepSeparator.alloc().init()
-            self.stack.addArrangedSubview_(separator)
-
-        self.stack.addArrangedSubview_(row)
-
-    # --------------------------------------------------------
-
-    def addStep_description_icon_(
-        self,
-        title,
-        description=None,
-        icon=None,
-    ):
-        row = StepRowView.alloc().init()
-
-        row.setTitle_description_(
-            title,
-            description,
-        )
-
+    def add_step(self, title, description=None, icon=None):
+        row = StepRowView()
+        row.set_title_description(title, description)
         if icon:
-            row.setIcon_(icon)
+            row.set_icon(icon)
+        self._append_row_with_separator(row)
+        return row
 
-        self._appendRowWithSeparator_(row)
-
-        self._animateInsertion_(row)
-
-    # --------------------------------------------------------
-
-    def beginCurrentStep_description_icon_(
-        self,
-        title,
-        description=None,
-        icon=None,
-    ):
-        # if self.currentRow:
-        #     return
-
-        self.currentRow = StepRowView.alloc().init()
-
-        self.currentRow.setTitle_description_(
-            title,
-            description,
-        )
-
+    def begin_current_step(self, title, description=None, icon=None):
+        self.current_row = StepRowView()
+        self.current_row.set_title_description(title, description)
         if icon:
-            self.currentRow.setIcon_(icon)
+            self.current_row.set_icon(icon)
+        self.current_row.set_loading()
+        self._append_row_with_separator(self.current_row)
 
-        self.currentRow.setLoading()
-
-        self._appendRowWithSeparator_(self.currentRow)
-
-        self._animateInsertion_(self.currentRow)
-
-    # --------------------------------------------------------
-
-    def updateCurrentStep_description_(
-        self,
-        title=None,
-        description=None,
-    ):
-
-        if not self.currentRow:
+    def update_current_step(self, title=None, description=None):
+        if not self.current_row:
             return
-
         if title is not None:
-            self.currentRow.titleLabel.setStringValue_(title)
-
+            self.current_row.title_label.setText(title)
         if description is not None:
-            self.currentRow.setTitle_description_(
-                self.currentRow.titleLabel.stringValue(),
-                description,
-            )
+            self.current_row.set_title_description(self.current_row.title_label.text(), description)
 
-    # --------------------------------------------------------
-
-    def finishCurrentStepSuccess_description_(
-        self,
-        title,
-        description=None,
-    ):
-
-        if not self.currentRow:
+    def finish_current_step_success(self, title, description=None):
+        if not self.current_row:
             return
+        self.current_row.set_title_description(title, description)
+        self.current_row.set_success()
+        self.current_row = None
 
-        self.currentRow.setTitle_description_(
-            title,
-            description,
-        )
-
-        self.currentRow.setSuccess()
-
-        self.currentRow = None
-
-    # --------------------------------------------------------
-
-    def finishCurrentStepError_description_(
-        self,
-        title,
-        description=None,
-    ):
-        if not self.currentRow:
+    def finish_current_step_error(self, title, description=None):
+        if not self.current_row:
             return
-
-        self.currentRow.setTitle_description_(
-            title,
-            description,
-        )
-
-        self.currentRow.setError()
-
-        self.currentRow = None
-
-    # --------------------------------------------------------
+        self.current_row.set_title_description(title, description)
+        self.current_row.set_error()
+        self.current_row = None
 
     def reset(self):
-        for view in list(self.stack.arrangedSubviews()):
-            self.stack.removeArrangedSubview_(view)
-            view.removeFromSuperview()
-
-        self.currentRow = None
-
-    # --------------------------------------------------------
-
-    def _animateInsertion_(self, row):
-
-        row.setAlphaValue_(0.0)
-
-        targetHeight = row.fittingSize().height
-        heightConstraint = row.heightAnchor().constraintEqualToConstant_(0)
-        heightConstraint.setActive_(True)
-
-        self.layoutSubtreeIfNeeded()
-
-        def animation(context):
-            context.setDuration_(0.20)
-            row.animator().setAlphaValue_(1.0)
-            heightConstraint.animator().setConstant_(targetHeight)
-            self.animator().layoutSubtreeIfNeeded()
-
-        def completion():
-            heightConstraint.setActive_(False)
-
-        NSAnimationContext.runAnimationGroup_completionHandler_(
-            animation,
-            completion,
-        )
+        while self.stack_layout.count():
+            item = self.stack_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._rows = []
+        self.stack_layout.addStretch(1)
+        self.current_row = None

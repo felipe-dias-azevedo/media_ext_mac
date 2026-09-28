@@ -18,7 +18,7 @@ from repositories.database import MediaDB, DB_FILENAME
 from utils.db_path import db_path
 from models.models import MediaItem, HistoryFormatter
 
-
+# TODO: refactor to pyqt6
 # TODO: Add search/filter functionality, e.g. a search field at the top of the sidebar that filters the history items in real time as the user types. This would be especially useful as the history grows over time.
 
 class SidebarVC(NSViewController, protocols=[objc.protocolNamed("NSTableViewDataSource"),

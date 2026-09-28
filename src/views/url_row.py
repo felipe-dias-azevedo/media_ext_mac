@@ -1,149 +1,138 @@
-import objc
-from Cocoa import (
-    NSView, NSTextField, NSBox, NSButton, NSImage, NSStackView,
-    NSFont, NSColor, NSPasteboard, NSStringPboardType,
-    NSMakeSize, NSLayoutConstraint, NSUserInterfaceLayoutOrientationHorizontal,
-    NSBoxCustom, NSMomentaryPushInButton, NSImageOnly, NSFocusRingTypeNone,
-    NSNoBorder,
-    NSBezelStyleShadowlessSquare, NSFontWeightSemibold, NSMutableAttributedString, NSBezelStyleRegularSquare
+
+from PyQt6.QtCore import (
+    QSize,
+    Qt,
 )
-from AppKit import (
-    NSBeep,
+from PyQt6.QtGui import (
+    QFont,
+    QGuiApplication,
 )
+from PyQt6.QtWidgets import (
+    QApplication,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QToolButton,
+    QWidget,
+)
+from utils.qt_icons import create_symbol
+from utils.theme import Theme, get_theme
 from utils.url_validator import YtValidator
 
 
-class URLRowView(NSView):
+# TODO: add on the right of the button box a chevron down that opens a NSPopover	
 
-    def initWithTarget_action_(self, target, action):
-        self = objc.super(URLRowView, self).init()
-        if self is None:
-            return None
 
-        self.setTranslatesAutoresizingMaskIntoConstraints_(False)
+class URLRowView(QWidget):
 
-        # URL container (box) — dynamic colors, rounded, border
-        self.urlContainer = NSBox.alloc().init()
-        self.urlContainer.setBoxType_(NSBoxCustom)
-        self.urlContainer.setCornerRadius_(6.0)
-        self.urlContainer.setBorderWidth_(1.0)
-        self.urlContainer.setBorderColor_(NSColor.separatorColor())
-        self.urlContainer.setFillColor_(NSColor.tertiarySystemFillColor())
-        self.urlContainer.setContentViewMargins_(NSMakeSize(0.0, 0.0))
-        self.urlContainer.setTranslatesAutoresizingMaskIntoConstraints_(False)
+    ACCENT = "#0A84FF"
 
-        self.urlInlineLabel = NSTextField.labelWithString_("URL")
-        self.urlInlineLabel.setFont_(NSFont.systemFontOfSize_(NSFont.systemFontSize()))
-        self.urlInlineLabel.setTextColor_(NSColor.secondaryLabelColor())
+    def __init__(self, on_extract, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(32)
 
-        self.urlField = NSTextField.alloc().init()
-        self.urlField.setBordered_(False)
-        self.urlField.setDrawsBackground_(False)
-        self.urlField.setFocusRingType_(NSFocusRingTypeNone)
-        self.urlField.setPlaceholderString_("Paste a video link")
-        self.urlField.cell().setWraps_(False)
-        self.urlField.cell().setScrollable_(True)
-        self.urlField.cell().setUsesSingleLineMode_(True)
-        self.urlField.setMaximumNumberOfLines_(1)
-        self.urlField.setDelegate_(self)
-        self.urlField.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        theme = get_theme()
 
-        self.pasteButton = NSButton.alloc().init()
-        self.pasteButton.setBordered_(False)
-        self.pasteButton.setBezelStyle_(NSBezelStyleShadowlessSquare)
-        self.pasteButton.setImage_(NSImage.imageWithSystemSymbolName_accessibilityDescription_("doc.on.clipboard", "Paste"))
-        self.pasteButton.setImagePosition_(NSImageOnly)
-        self.pasteButton.setButtonType_(NSMomentaryPushInButton)
-        self.pasteButton.setToolTip_("Paste")
-        self.pasteButton.setTarget_(self)
-        self.pasteButton.setAction_("pasteURL:")
-        self.pasteButton.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.container = QFrame(self)
+        self.container.setObjectName("urlContainer")
 
-        urlRow = NSStackView.stackViewWithViews_([
-            self.urlInlineLabel,
-            self.urlField,
-            self.pasteButton,
-        ])
-        urlRow.setOrientation_(NSUserInterfaceLayoutOrientationHorizontal)
-        urlRow.setSpacing_(10.0)
-        urlRow.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.url_inline_label = QLabel("URL")
 
-        urlContent = self.urlContainer.contentView()
-        urlContent.addSubview_(urlRow)
+        self.url_field = QLineEdit()
+        self.url_field.setFrame(False)
+        self.url_field.setPlaceholderText("Paste a video link")
+        self.url_field.setStyleSheet("background: transparent; border: none;")
+        self.url_field.returnPressed.connect(on_extract)
 
-        # TODO: add on the right of the button box a chevron down that opens a NSPopover
+        self.paste_button = QToolButton()
+        self.paste_button.setIcon(create_symbol("doc.on.clipboard", theme.icon_secondary))
+        self.paste_button.setIconSize(QSize(16, 16))
+        self.paste_button.setAutoRaise(True)
+        self.paste_button.setToolTip("Paste")
+        self.paste_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.paste_button.clicked.connect(self._paste_url)
 
-        # Extract button
-        self.extractButtonBox = NSBox.alloc().init()
-        self.extractButtonBox.setBoxType_(NSBoxCustom)
-        self.extractButtonBox.setBorderWidth_(0.0)
-        self.extractButtonBox.setBorderType_(NSNoBorder)
-        self.extractButtonBox.setContentViewMargins_(NSMakeSize(0.0, 0.0))
-        self.extractButtonBox.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        row = QHBoxLayout(self.container)
+        row.setContentsMargins(10, 0, 1, 0)
+        row.setSpacing(10)
+        row.addWidget(self.url_inline_label)
+        row.addWidget(self.url_field, 1)
+        row.addWidget(self.paste_button)
 
-        self.extractButton = NSButton.alloc().init()
-        self.extractButton.setTitle_("Extract")
-        self.extractButton.setBordered_(True)
-        self.extractButton.setBezelStyle_(NSBezelStyleRegularSquare)
-        self.extractButton.setBezelColor_(NSColor.controlAccentColor())
-        self.extractButton.setFont_(NSFont.systemFontOfSize_weight_(NSFont.systemFontSize(), NSFontWeightSemibold))
-        self.extractButton.setContentTintColor_(NSColor.whiteColor())
-        self.extractButton.setTarget_(target)
-        self.extractButton.setAction_(action)
-        self.extractButton.setTranslatesAutoresizingMaskIntoConstraints_(False)
+        self.extract_button = QPushButton("Extract")
+        self.extract_button.setFixedSize(76, 32)
+        self.extract_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.extract_button.setDefault(True)
+        self.extract_button.clicked.connect(on_extract)
+        extract_font = self.extract_button.font()
+        extract_font.setWeight(QFont.Weight.DemiBold)
+        self.extract_button.setFont(extract_font)
 
-        extractContent = self.extractButtonBox.contentView()
-        extractContent.addSubview_(self.extractButton)
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(12)
+        outer.addWidget(self.container, 1)
+        outer.addWidget(self.extract_button, 0)
+        self.apply_theme()
 
-        self.addSubview_(self.urlContainer)
-        self.addSubview_(self.extractButtonBox)
+    def apply_theme(self):
+        theme = get_theme()
+        self.container.setStyleSheet(
+            "#urlContainer {"
+            f"  background-color: {Theme.rgba(theme.fill)};"
+            f"  border: 1px solid {Theme.rgba(theme.separator)};"
+            "  border-radius: 6px;"
+            "}"
+        )
+        self.url_inline_label.setStyleSheet(
+            f"color: {Theme.rgba(theme.secondary_text)}; border: none; background: transparent;"
+        )
+        self.paste_button.setStyleSheet(
+            "QToolButton {"
+            "  border: none;"
+            "  background: transparent;"
+            "  border-radius: 4px;"
+            "  padding: 4px;"
+            "}"
+            f"QToolButton:hover {{ background-color: {Theme.rgba(theme.hover_fill)}; }}"
+            f"QToolButton:pressed {{ background-color: {Theme.rgba(theme.pressed_fill)}; }}"
+        )
+        self.extract_button.setStyleSheet(
+            "QPushButton {"
+            f"  background-color: {self.ACCENT};"
+            "  color: white;"
+            "  border: none;"
+            "  border-radius: 6px;"
+            "}"
+            "QPushButton:hover:!disabled { background-color: #3399FF; }"
+            "QPushButton:pressed:!disabled { background-color: #0764C4; }"
+            "QPushButton:disabled {"
+            f"  background-color: {Theme.rgba(theme.fill)};"
+            f"  color: {Theme.rgba(theme.secondary_text)};"
+            "}"
+        )
 
-        for view in (self.urlContainer, self.extractButtonBox, self.extractButton, self.urlInlineLabel, self.urlField, self.pasteButton):
-            view.setTranslatesAutoresizingMaskIntoConstraints_(False)
-
-        NSLayoutConstraint.activateConstraints_([
-            self.urlContainer.leadingAnchor().constraintEqualToAnchor_(self.leadingAnchor()),
-            self.urlContainer.topAnchor().constraintEqualToAnchor_(self.topAnchor()),
-            self.urlContainer.bottomAnchor().constraintEqualToAnchor_(self.bottomAnchor()),
-            self.urlContainer.trailingAnchor().constraintEqualToAnchor_constant_(self.extractButtonBox.leadingAnchor(), -12.0),
-            self.urlContainer.heightAnchor().constraintEqualToConstant_(32.0),
-
-            urlRow.leadingAnchor().constraintEqualToAnchor_constant_(urlContent.leadingAnchor(), 10.0),
-            urlRow.trailingAnchor().constraintEqualToAnchor_constant_(urlContent.trailingAnchor(), -10.0),
-            urlRow.centerYAnchor().constraintEqualToAnchor_(urlContent.centerYAnchor()),
-
-            self.extractButtonBox.trailingAnchor().constraintEqualToAnchor_(self.trailingAnchor()),
-            self.extractButtonBox.centerYAnchor().constraintEqualToAnchor_(self.urlContainer.centerYAnchor()),
-            self.extractButtonBox.heightAnchor().constraintEqualToConstant_(32.0),
-            self.extractButtonBox.widthAnchor().constraintEqualToConstant_(76.0),
-
-            self.extractButton.leadingAnchor().constraintEqualToAnchor_(extractContent.leadingAnchor()),
-            self.extractButton.trailingAnchor().constraintEqualToAnchor_(extractContent.trailingAnchor()),
-            self.extractButton.topAnchor().constraintEqualToAnchor_(extractContent.topAnchor()),
-            self.extractButton.bottomAnchor().constraintEqualToAnchor_(extractContent.bottomAnchor()),
-        ])
-
-        return self
-
-    def pasteURL_(self, sender):
-        pb = NSPasteboard.generalPasteboard()
-        text = pb.stringForType_(NSStringPboardType)
+    def _paste_url(self):
+        text = QGuiApplication.clipboard().text()
         if not text:
-            NSBeep()
+            QApplication.beep()
             return
         validator = YtValidator(text)
         if not validator.is_valid_url():
-            NSBeep()
+            QApplication.beep()
             return
-        self.urlField.setStringValue_(text)
-    
-    def urlValue(self):
-        return self.urlField.stringValue()
+        self.url_field.setText(text)
 
-    def clearURL(self):
-        self.urlField.setStringValue_("")
+    def url_value(self):
+        return self.url_field.text()
 
-    def setEnabled_(self, enabled):
-        self.urlField.setEnabled_(enabled)
-        self.pasteButton.setEnabled_(enabled)
-        self.extractButton.setEnabled_(enabled)
+    def clear_url(self):
+        self.url_field.clear()
+
+    def set_enabled(self, enabled):
+        self.url_field.setEnabled(enabled)
+        self.paste_button.setEnabled(enabled)
+        self.extract_button.setEnabled(enabled)
+

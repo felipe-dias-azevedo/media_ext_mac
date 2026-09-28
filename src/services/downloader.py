@@ -67,10 +67,10 @@ class Downloader:
                 }],
                 'ffmpeg_location': self.ffmpeg_path,
                 'postprocessor_args': {
-                    'ffmpeg': ['-af', normalization_map[normalization]],
+                    'extractaudio+ffmpeg': ['-af', normalization_map[normalization]],
                     # '-id3v2_version': '3',
                 },
-                "addmetadata": True,
+                # "addmetadata": True,
                 "color": "never",
                 'addmetadata': False,
                 'writethumbnail': False,
