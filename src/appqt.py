@@ -293,6 +293,16 @@ class MainWindow(QMainWindow):
         if validator.is_playlist():
             # Full playlist item picker was out of scope for this port; the
             # downloader.fetch() hook is kept so it can be wired up later.
+
+            """OLD TODO:
+            # TODO: present a NSView inside a Sheet for window to choose which items from playlist to download
+                    
+            # TODO: call self.downloader.download (passing the multiple urls aggregated in a list from info dict)
+            # TODO: understand if gonna keep using ProgressSteps
+            # TODO: Update workflows to accept the finish of multiple files
+            """
+            
+
             self.logger.info("Playlist URL detected.")
             self.downloader.fetch(text)
             QMessageBox.information(self, "Playlist", "Playlist downloading isn't wired up in this build yet.")

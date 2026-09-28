@@ -28,6 +28,9 @@ from views.current_step_separator_view import CurrentStepSeparator
 from views.spinner import SpinnerWidget
 
 
+# TODO: add an optional button on the right side with custom lambda functionality
+
+
 @dataclass
 class ProgressStep:
     title: str

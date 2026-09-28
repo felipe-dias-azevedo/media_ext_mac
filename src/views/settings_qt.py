@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QComboBox, QDialog, QFormLayout
 
 from utils.user_defaults import NORMALIZATION_OPTIONS, UserDefaults
 
+# TODO: improve the layout of settings
 
 class SettingsWindow(QDialog):
     def __init__(self, user_defaults: UserDefaults, parent=None):

@@ -21,6 +21,10 @@ from utils.qt_icons import create_symbol
 from utils.theme import Theme, get_theme
 from utils.url_validator import YtValidator
 
+
+# TODO: add on the right of the button box a chevron down that opens a NSPopover	
+
+
 class URLRowView(QWidget):
 
     ACCENT = "#0A84FF"
