@@ -1,29 +1,30 @@
-import uuid
-from UserNotifications import (
-    UNMutableNotificationContent,
-    UNTimeIntervalNotificationTrigger,
-    UNNotificationRequest,
-    UNUserNotificationCenter,
-    UNNotificationSound,
-)
+from PyQt6.QtWidgets import QApplication, QSystemTrayIcon
 
-def send_notification(title: str, subtitle: str = "", body: str = ""):
-    content = UNMutableNotificationContent.alloc().init()
-    content.setTitle_(title)
-    if subtitle:
-        content.setSubtitle_(subtitle)
-    content.setBody_(body)
-    content.setSound_(UNNotificationSound.defaultSound())
+from utils.qt_icons import app_icon
 
-    # “Now”: schedule for 1 second later (required by UN*)
-    trigger = UNTimeIntervalNotificationTrigger.triggerWithTimeInterval_repeats_(1, False)
+_tray_icon: QSystemTrayIcon | None = None
 
-    request = UNNotificationRequest.requestWithIdentifier_content_trigger_(
-        str(uuid.uuid4()), content, trigger
-    )
 
-    def _added(error):
-        if error:
-            print("Failed to schedule notification:", error)
+def _get_tray_icon() -> QSystemTrayIcon | None:
+    global _tray_icon
 
-    UNUserNotificationCenter.currentNotificationCenter().addNotificationRequest_withCompletionHandler_(request, _added)
+    application = QApplication.instance()
+    if application is None or not QSystemTrayIcon.isSystemTrayAvailable():
+        return None
+
+    if _tray_icon is None:
+        _tray_icon = QSystemTrayIcon(app_icon(), application)
+        _tray_icon.show()
+
+    return _tray_icon
+
+
+def send_notification(title: str, subtitle: str = "", body: str = "") -> None:
+    message = "\n".join(part for part in (subtitle, body) if part)
+    tray_icon = _get_tray_icon()
+    if tray_icon is not None:
+        tray_icon.showMessage(
+            title,
+            message,
+            QSystemTrayIcon.MessageIcon.Information,
+        )

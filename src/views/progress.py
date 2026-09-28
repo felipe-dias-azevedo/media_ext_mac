@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
 
 from utils.qt_icons import create_symbol
 from utils.theme import Theme, get_theme
-from views.current_step_separator_view import CurrentStepSeparator
+from views.current_step_separator import CurrentStepSeparator
 from views.spinner import SpinnerWidget
 
 

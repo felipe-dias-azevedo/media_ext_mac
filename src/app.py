@@ -1,52 +1,47 @@
-from Cocoa import (
-    NSObject, NSApplication, NSApp, NSWindow,
-    NSView, NSViewController, NSScrollView, NSTextView, NSTextField, NSTableCellView,
-    NSButton, NSBox, NSStackView, NSProgressIndicator,
-    NSSplitViewController, NSSplitViewItem, NSToolbar, NSImageView,
-    NSWindowStyleMaskTitled, NSWindowStyleMaskClosable, NSTableViewStyleInset,
-    NSWindowStyleMaskMiniaturizable, NSWindowStyleMaskResizable, NSBackingStoreBuffered,
-    NSApplicationActivationPolicyRegular, NSFont, NSColor, NSPasteboard,
-    NSStringPboardType, NSLayoutConstraint, NSLayoutConstraintOrientationHorizontal,
-    NSMutableAttributedString, NSMakeSize, NSMakeRect, NSMakeRange,
-    NSUserInterfaceLayoutOrientationHorizontal, NSBoxCustom, NSMomentaryPushInButton, NSControlSizeLarge,
-    NSBezelStyleShadowlessSquare, NSImageOnly, NSFocusRingTypeNone, NSBezelStyleRounded, NSProgressIndicatorStyleSpinning,
-    NSTextLayoutOrientationHorizontal, NSLineBreakByTruncatingMiddle, NSFontWeightMedium,
-    NSSavePanel, NSModalResponseOK, NSModalResponseCancel, NSAlert, NSFontWeightSemibold, NSNoBorder,
-    NSVisualEffectView, NSVisualEffectMaterialSidebar, NSToolbarSidebarTrackingSeparatorItemIdentifier,
-    NSVisualEffectBlendingModeBehindWindow, NSVisualEffectStateActive, NSWindowTitleHidden,
-    NSToolbarDisplayModeIconOnly, NSToolbarToggleSidebarItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier,
-    NSToolbarItem, NSWindowTabbingModeDisallowed, NSWindowStyleMaskFullSizeContentView, NSWindowToolbarStyleUnified,
-    NSTableViewAnimationSlideUp, NSTableViewAnimationSlideDown, NSTableViewAnimationEffectFade,
-    NSUserDefaults
-)
-from AppKit import (
-    NSBeep, NSAlertStyleWarning, NSAlertStyleInformational, NSAlertFirstButtonReturn, NSAlertSecondButtonReturn
-)
-from UserNotifications import (
-    UNUserNotificationCenter,
-    UNAuthorizationOptionAlert,
-    UNAuthorizationOptionSound,
-    UNAuthorizationOptionBadge,
-    UNNotificationPresentationOptionAlert,
-    UNNotificationPresentationOptionSound,
-)
-import objc
 import os
+import sys
 import threading
-from datetime import datetime
-from services.downloader import Downloader
-from views.playlist_status_view import PlaylistStatusView, PlaylistItemStatus
-from views.progress import ProgressStepsView
-from utils.user_defaults import UserDefaults
-from models.models import MediaItem
-from utils.notifications import send_notification
-from views.menu import buildMenus
-from views.settings import SettingsWindowController
-from views.url_row import URLRowView
-from views.sidebar import SidebarVC
-from views.log_window_controller import LogWindowController
 from enum import Enum
+from utils.theme import get_theme, refresh_theme
 from utils.url_validator import YtValidator
+from views.menu import build_menu_bar
+from views.progress import ProgressStepsView
+from views.url_row import URLRowView
+from views.log_window import LogWindow
+from views.settings import SettingsWindow
+from utils.user_defaults import UserDefaults
+from utils.notifications import send_notification
+
+from PyQt6.QtCore import (
+    QObject,
+    pyqtSignal,
+)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QFrame,
+    QMainWindow,
+    QMessageBox,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
+
+# The downloader service is kept as-is and referenced later — see module
+# docstring above. This import is left in place on purpose.
+from services.downloader import Downloader
+
+# ============================================================
+# Progress plumbing (app.py: Progresser / ProgressStatus port)
+# ============================================================
+
+class ProgressStatus(Enum):
+    ADD = 0
+    BEGIN = 1
+    UPDATE = 2
+    SUCCESS = 3
+    ERROR = 4
+
 
 class Progresser:
     def __init__(self, handler):
@@ -70,352 +65,259 @@ class Progresser:
         self.postprocessing = False
         self.handler((ProgressStatus.SUCCESS, "Post Processing Completed", msg, None))
 
-class ProgressStatus(Enum):
-    ADD = 0
-    BEGIN = 1
-    UPDATE = 2
-    SUCCESS = 3
-    ERROR = 4
+
+class DownloaderLogger:
+    def __init__(self, handler):
+        self.content = ""
+        self.handler = handler
+
+    def output(self, text):
+        self.content += text + "\n"
+
+        if "--dev" in __import__("sys").argv:
+            print(text)
+
+        self.handler(self.content)
+
+    def debug(self, msg):
+        self.output(f"{msg}")
+
+    def info(self, msg):
+        self.output(f"[INFO] {msg}")
+
+    def warning(self, msg):
+        self.output(f"[WARNING] {msg}")
+
+    def error(self, msg):
+        self.output(f"[ERROR] {msg}")
+
+    def reset(self):
+        self.content = ""
 
 
-# -----------------------------
-# Content VC (right side)
-# -----------------------------
+class WorkerSignals(QObject):
+    """performSelectorOnMainThread_withObject_waitUntilDone_ replacement:
+    Qt signals are automatically queued back to the GUI thread when emitted
+    from a background thread."""
 
-class ContentVC(NSViewController):
+    progress = pyqtSignal(object)   # (ProgressStatus, title, description, icon)
+    extract_finished = pyqtSignal(str)  # src_path
+    busy = pyqtSignal(bool)
+    log_updated = pyqtSignal(str)
+    notification = pyqtSignal(str, str)
 
-    def init(self):
-        self = objc.super(ContentVC, self).init()
-        if self is None:
-            return None
-        self.sidebarVC = None  # to be set by parent
 
-        # UI elements
-        self.urlRow = None
-        self.progressSteps = ProgressStepsView.alloc().init()
-        self.progressSteps.setHidden_(True)
-        self.playlistStatus = PlaylistStatusView.alloc().init()
-        self.playlistStatus.setHidden_(True)
-        self.logger = None
-        self.downloader = None
-        self.progresser = Progresser(self._enqueue_progress)
-        self.userDefaults = UserDefaults()
+# ============================================================
+# Main window (app.py: AppDelegate + RootSplitVC + ContentVC port)
+# ============================================================
 
-        return self
+class MainWindow(QMainWindow):
 
-    def viewDidAppear(self):
-        objc.super(ContentVC, self).viewDidAppear()
-        self.urlRow.extractButton.setKeyEquivalent_("\r")
-        if self.view().window() is not None:
-            self.view().window().setDefaultButtonCell_(self.urlRow.extractButton.cell())
+    def __init__(self):
+        super().__init__()
+        # self.setWindowIcon(app_icon()) TODO: check if on windows this is still necessary considering build embeds .ico
+        self.setWindowTitle("Media.Ext")
+        self.resize(840, 620)
+        self.setMinimumSize(600, 360)
 
-    def loadView(self):
-        root = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 600, 400))
-        self.setView_(root)
-
-        # URL row component (input, paste, extract button)
-        self.urlRow = URLRowView.alloc().initWithTarget_action_(self, "extract:")
-        self.urlRow.setTranslatesAutoresizingMaskIntoConstraints_(False)
-
-        # ---- Add outer subviews
-        for sub in (self.urlRow, self.progressSteps, self.playlistStatus):
-            sub.setTranslatesAutoresizingMaskIntoConstraints_(False)
-            root.addSubview_(sub)
-
-        # ---- Constraints (outer)
-        NSLayoutConstraint.activateConstraints_([
-            self.urlRow.leadingAnchor().constraintEqualToAnchor_constant_(root.leadingAnchor(), 24.0),
-            self.urlRow.topAnchor().constraintEqualToAnchor_constant_(root.topAnchor(), 68.0),
-            self.urlRow.trailingAnchor().constraintEqualToAnchor_constant_(root.trailingAnchor(), -24.0),
-            self.urlRow.heightAnchor().constraintEqualToConstant_(32.0),
-
-            self.progressSteps.leadingAnchor().constraintEqualToAnchor_(self.urlRow.leadingAnchor()),
-            self.progressSteps.trailingAnchor().constraintEqualToAnchor_(self.urlRow.trailingAnchor()),
-            self.progressSteps.topAnchor().constraintEqualToAnchor_constant_(self.urlRow.bottomAnchor(), 12.0),
-            self.progressSteps.heightAnchor().constraintGreaterThanOrEqualToConstant_(32.0),
-
-            self.playlistStatus.leadingAnchor().constraintEqualToAnchor_(self.urlRow.leadingAnchor()),
-            self.playlistStatus.trailingAnchor().constraintEqualToAnchor_(self.urlRow.trailingAnchor()),
-            self.playlistStatus.topAnchor().constraintEqualToAnchor_constant_(self.urlRow.bottomAnchor(), 12.0),
-            self.playlistStatus.bottomAnchor().constraintEqualToAnchor_constant_(root.bottomAnchor(), -24.0),
-            self.playlistStatus.heightAnchor().constraintGreaterThanOrEqualToConstant_(88.0),
-        ])
-
-    def viewDidLayout(self):
-        objc.super(ContentVC, self).viewDidLayout()
-
-    def setLogger_(self, logger):
-        self.logger = logger
+        self.log_window = LogWindow(self)
+        self.user_defaults = UserDefaults()
+        self.settings_window = SettingsWindow(self.user_defaults, self)
+        self.signals = WorkerSignals()
+        self.signals.log_updated.connect(self.log_window.set_logs)
+        self.logger = DownloaderLogger(self.signals.log_updated.emit)
+        self.progresser = Progresser(self.signals.progress.emit)
         self.downloader = Downloader(self.logger, self.progresser)
 
-    def _enqueue_log(self, text):
-        self.performSelectorOnMainThread_withObject_waitUntilDone_("appendLog:", text, False)
+        self.signals.progress.connect(self._update_progress)
+        self.signals.extract_finished.connect(self._finish_extract)
+        self.signals.busy.connect(self.set_busy)
+        self.signals.notification.connect(send_notification)
 
-    def startExtract(self):
-        if self.progressSteps.isHidden():
-            self.progressSteps.setHidden_(False)
-        self.progressSteps.reset()
-        self.logger.reset()
-        self.logger.info("Extract started.")
-        self.setBusy_(True)
+        self.url_row = URLRowView(self._extract)
+        self.progress_steps = ProgressStepsView()
+        self.progress_steps.hide()
 
-    def _extractPlaylist_(self, response):
-        text = self.urlRow.urlValue().strip()
-        if response == NSAlertFirstButtonReturn:
-            text = YtValidator.remove_playlist_from_query(text)
-        else:
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_layout.addWidget(self.progress_steps)
+        scroll_layout.addStretch(1)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(scroll_content)
+
+        central = QWidget()
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(12)
+        layout.addWidget(self.url_row)
+        layout.addWidget(scroll, 1)
+        self.setCentralWidget(central)
+
+        build_menu_bar(self)
+        app = QApplication.instance()
+        style_hints = app.styleHints()
+        if hasattr(style_hints, "colorSchemeChanged"):
+            style_hints.colorSchemeChanged.connect(self._refresh_theme)
+        if hasattr(app, "paletteChanged"):
+            app.paletteChanged.connect(self._refresh_theme)
+
+    def _refresh_theme(self, *_):
+        previous_dark = get_theme().dark
+        theme = refresh_theme()
+        if theme.dark == previous_dark:
             return
-        self.startExtract()
-        threading.Thread(target=self._download_thread, args=(text,), daemon=True).start()
+        self.url_row.apply_theme()
+        self.progress_steps.apply_theme()
 
-    def extract_(self, sender): 
-        
-        text = self.urlRow.urlValue().strip()
+    def show_logs(self):
+        self.log_window.show()
+        self.log_window.raise_()
+        self.log_window.activateWindow()
+
+    def show_preferences(self):
+        self.settings_window.show()
+        self.settings_window.raise_()
+        self.settings_window.activateWindow()
+
+    # ----- extract flow -----
+
+    def _extract(self):
+        text = self.url_row.url_value().strip()
         if not text:
-            NSBeep()
+            QApplication.beep()
             return
 
         validator = YtValidator(text)
 
         if not validator.is_valid_url():
-            NSBeep()
-            alert = NSAlert.alloc().init()
-            alert.setMessageText_("Invalid URL")
-            alert.setInformativeText_("Please enter a valid URL.")
-            alert.setAlertStyle_(NSAlertStyleWarning)
-            alert.addButtonWithTitle_("OK")
-            alert.beginSheetModalForWindow_completionHandler_(
-                self.view().window(),
-                lambda _: None
-            )
+            QApplication.beep()
+            QMessageBox.warning(self, "Invalid URL", "Please enter a valid URL.")
             return
 
         if validator.is_content() and validator.is_playlist():
-            alert = NSAlert.alloc().init()
-            alert.setMessageText_("Playlist Detected")
-            alert.setInformativeText_("This URL contains a playlist. Would you like to download the entire playlist or only the current media?")
-            alert.setAlertStyle_(NSAlertStyleInformational)
-            alert.addButtonWithTitle_("Current Media")
-            alert.addButtonWithTitle_("Cancel")
-                    
-            alert.beginSheetModalForWindow_completionHandler_(
-                self.view().window(),
-                self._extractPlaylist_
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Information)
+            box.setWindowTitle("Playlist Detected")
+            box.setText(
+                "This URL contains a playlist. Would you like to download the "
+                "entire playlist or only the current media?"
             )
+            current_btn = box.addButton("Current Media", QMessageBox.ButtonRole.AcceptRole)
+            box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+            box.exec()
+            if box.clickedButton() is not current_btn:
+                return
+            text = YtValidator.remove_playlist_from_query(text)
+            self._start_extract()
+            threading.Thread(target=self._download_thread, args=(text,), daemon=True).start()
             return
-        
-        if validator.is_playlist():
-            print("Playlist")
-            info = self.downloader.fetch(text)
-            
-            # TODO: present a NSView inside a Sheet for window to choose which items from playlist to download
 
+        if validator.is_playlist():
+            # Full playlist item picker was out of scope for this port; the
+            # downloader.fetch() hook is kept so it can be wired up later.
+
+            """OLD TODO:
+            # TODO: present a NSView inside a Sheet for window to choose which items from playlist to download
+                    
             # TODO: call self.downloader.download (passing the multiple urls aggregated in a list from info dict)
             # TODO: understand if gonna keep using ProgressSteps
             # TODO: Update workflows to accept the finish of multiple files
-            self.progressSteps.setHidden_(True)
-            self.playlistStatus.setHidden_(False)
+            """
+            
 
+            self.logger.info("Playlist URL detected.")
+            self.downloader.fetch(text)
+            QMessageBox.information(self, "Playlist", "Playlist downloading isn't wired up in this build yet.")
             return
 
-        self.startExtract()
+        self._start_extract()
         threading.Thread(target=self._download_thread, args=(text,), daemon=True).start()
 
-    def _enqueue_progress(self, args):
-        self.performSelectorOnMainThread_withObject_waitUntilDone_("updateProgress:", args, False)
-
-    def updateProgress_(self, args):
-        status, title, description, icon = args
-        match status:
-            case ProgressStatus.ADD:
-                self.progressSteps.addStep_description_icon_(title, description, icon)
-            case ProgressStatus.BEGIN:
-                self.progressSteps.beginCurrentStep_description_icon_(title, description, None)
-            case ProgressStatus.UPDATE:
-                self.progressSteps.updateCurrentStep_description_(title, description)
-            case ProgressStatus.SUCCESS:
-                self.progressSteps.finishCurrentStepSuccess_description_(title, description)
-            case ProgressStatus.ERROR:
-                self.progressSteps.finishCurrentStepError_description_(title, description)
+    def _start_extract(self):
+        self.progress_steps.show()
+        self.progress_steps.reset()
+        self.logger.reset()
+        self.logger.info("Extract started.")
+        self.set_busy(True)
 
     def _download_thread(self, url):
         try:
-            normalization = self.userDefaults.getNormalization()
+            normalization = self.user_defaults.getNormalization()
             normalization_text = f"Using normalization: {normalization}"
             self.logger.info(normalization_text)
-            self.performSelectorOnMainThread_withObject_waitUntilDone_("updateProgress:", (ProgressStatus.ADD, "Normalization", normalization_text, "gearshape"), False)
+            self.signals.progress.emit((ProgressStatus.ADD, "Normalization", normalization_text, "gearshape"))
 
-            self.performSelectorOnMainThread_withObject_waitUntilDone_("updateProgress:", (ProgressStatus.BEGIN, "Downloading", "Starting Download...", None), False)
+            self.signals.progress.emit((ProgressStatus.BEGIN, "Downloading", "Starting Download...", None))
             path = self.downloader.download(url, normalization=normalization)
             self.logger.info(f"Download finished successfully: {path}")
-            send_notification("Download Completed", os.path.basename(path))
+            self.signals.notification.emit("Download Completed", os.path.basename(path))
 
-            self.performSelectorOnMainThread_withObject_waitUntilDone_("finishExtract:", path, True)
-
+            self.signals.extract_finished.emit(path)
         except Exception as e:
-            self.logger.error(f"Error: {e}")
-            self.performSelectorOnMainThread_withObject_waitUntilDone_("updateProgress:", (ProgressStatus.ERROR, "Error", e, None), False)
-        finally:
-            self.performSelectorOnMainThread_withObject_waitUntilDone_("setBusy:", False, False)
+            self.logger.error(f"Error {type(e).__name__}: {e}")
+            self.signals.progress.emit((ProgressStatus.ERROR, "Error", str(e), None))
+            self.signals.busy.emit(False)
 
-    def finishExtract_(self, src_path):
+    def _update_progress(self, args):
+        status, title, description, icon = args
+        if status == ProgressStatus.ADD:
+            self.progress_steps.add_step(title, description, icon)
+        elif status == ProgressStatus.BEGIN:
+            self.progress_steps.begin_current_step(title, description, None)
+        elif status == ProgressStatus.UPDATE:
+            self.progress_steps.update_current_step(title, description)
+        elif status == ProgressStatus.SUCCESS:
+            self.progress_steps.finish_current_step_success(title, description)
+        elif status == ProgressStatus.ERROR:
+            self.progress_steps.finish_current_step_error(title, description)
+
+    def _finish_extract(self, src_path):
         try:
-            self.progressSteps.beginCurrentStep_description_icon_("Saving File", "Choose where to save...")
-            file = self.presentSavePanelForPath_(src_path)
-            
-            if file is None:
+            self.progress_steps.begin_current_step("Saving File", "Choose where to save...")
+            save_path = self._present_save_panel(src_path)
+
+            if save_path is None:
                 self.logger.warning("Save cancelled by user.")
-                self.progressSteps.finishCurrentStepError_description_("Save Failed", "Cancelled by user.")
+                self.progress_steps.finish_current_step_error("Save Failed", "Cancelled by user.")
                 return
 
-            media_item = MediaItem.item(
-                path=file,
-                title=os.path.basename(file), 
-                url=self.urlRow.urlValue().strip(), 
-                timestamp=datetime.now().timestamp(),
+            self.progress_steps.finish_current_step_success(
+                "Save File Completed", "File: " + os.path.basename(save_path)
             )
-            self.progressSteps.finishCurrentStepSuccess_description_("Save File Completed", "File: " + os.path.basename(file))
-            self.sidebarVC.addRowToSidebar_(media_item)
+            # History sidebar is out of scope for this port; this is where
+            # sidebarVC.addRowToSidebar_(media_item) used to be called.
         except Exception as e:
             self.logger.error(f"Save failed: {e}")
-            self.progressSteps.finishCurrentStepError_description_("Save Failed", e)
+            self.progress_steps.finish_current_step_error("Save Failed", str(e))
         finally:
-            self.setBusy_(False)
+            self.set_busy(False)
 
-    def setBusy_(self, is_busy):
-        self.urlRow.setEnabled_(not is_busy)
-        if not is_busy:
-            self.urlRow.clearURL()
-
-    def presentSavePanelForPath_(self, src_path):
-        save_path = self.openSavePanel_(src_path)
-        if save_path is None:
+    def _present_save_panel(self, src_path):
+        suggested = os.path.basename(src_path)
+        save_path, _ = QFileDialog.getSaveFileName(self, "Save File", suggested, "MP3 Audio (*.mp3)")
+        if not save_path:
             return None
-
         self.logger.info(f"Saving to: {save_path}")
         self.downloader.move_file(src_path, save_path)
         self.logger.info("File saved successfully.")
         return save_path
 
-    def openSavePanel_(self, src_path):
-        try:
-            panel = NSSavePanel.savePanel()
-            panel.setAllowsOtherFileTypes_(False)
-            panel.setAllowedFileTypes_(["mp3"])
-            suggested = os.path.basename(src_path)
-            panel.setNameFieldStringValue_(suggested)
-            resp = panel.runModal()
-            if not resp or resp != NSModalResponseOK:
-                return None
-            return panel.URL().path()
-        except Exception as e:
-            self.logger.error(f"Error showing save dialog: {e}")
-            return None
-
-
-# -----------------------------
-# Split container
-# -----------------------------
-
-class RootSplitVC(NSSplitViewController):
-    def viewDidLoad(self):
-        objc.super(RootSplitVC, self).viewDidLoad()
-        leftVC = SidebarVC.alloc().init()
-        rightVC = ContentVC.alloc().init()
-        rightVC.sidebarVC = leftVC
-        self.contentVC = rightVC
-        rightVC.setLogger_(LogWindowController.sharedController().logger)
-        left = NSSplitViewItem.sidebarWithViewController_(leftVC)
-        right = NSSplitViewItem.splitViewItemWithViewController_(rightVC)
-        self.addSplitViewItem_(left)
-        self.addSplitViewItem_(right)
-
-
-class NotificationDelegate(NSObject):
-    # Show banners/sound even when your app is frontmost
-    def userNotificationCenter_willPresentNotification_withCompletionHandler_(self, center, notification, completionHandler):
-        completionHandler(UNNotificationPresentationOptionAlert | UNNotificationPresentationOptionSound)
-
-# -----------------------------
-# App Delegate
-# -----------------------------
-
-class AppDelegate(NSObject):
-    window = objc.ivar()
-    splitVC = objc.ivar()
-
-    def applicationDidFinishLaunching_(self, notification):
-        NSApp.setActivationPolicy_(NSApplicationActivationPolicyRegular)
-        buildMenus()
-
-        self.notificationDelegate = NotificationDelegate.alloc().init()
-        center = UNUserNotificationCenter.currentNotificationCenter()
-        center.setDelegate_(self.notificationDelegate)
-        opts = UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge
-        def _auth_done(granted, error):
-            print("Notifications granted:", bool(granted), "error:", error)
-        center.requestAuthorizationWithOptions_completionHandler_(opts, _auth_done)
-
-        self.splitVC = RootSplitVC.alloc().init()
-
-        rect = NSMakeRect(0, 0, 840, 620)
-        style = (NSWindowStyleMaskTitled |
-                 NSWindowStyleMaskClosable |
-                 NSWindowStyleMaskMiniaturizable |
-                 NSWindowStyleMaskResizable)
-        self.window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
-            rect, style, NSBackingStoreBuffered, False
-        )
-        self.window.setTitle_("Media.Ext")
-        self.window.setStyleMask_(self.window.styleMask() | NSWindowStyleMaskFullSizeContentView)
-        self.window.setToolbarStyle_(NSWindowToolbarStyleUnified)
-        self.window.setTitlebarAppearsTransparent_(True)
-        self.window.setContentViewController_(self.splitVC)
-        self.window.setContentSize_(NSMakeSize(840, 620))
-        self.window.center()
-        self.window.makeKeyAndOrderFront_(None)
-        self.window.setTabbingMode_(NSWindowTabbingModeDisallowed)
-        self.window.setContentMinSize_(NSMakeSize(600, 360))
-
-        toolbar = NSToolbar.alloc().initWithIdentifier_("MediaExtToolbar")
-        toolbar.setDelegate_(self)
-        toolbar.setAutosavesConfiguration_(False)
-        toolbar.setAllowsUserCustomization_(False)
-        toolbar.setDisplayMode_(NSToolbarDisplayModeIconOnly)
-        self.window.setToolbar_(toolbar)
-
-        NSApp.activateIgnoringOtherApps_(True)
-
-    def applicationShouldTerminateAfterLastWindowClosed_(self, app):
-        return True
-    
-    def showPreferences_(self, sender):
-        SettingsWindowController.sharedController().showWindow_(sender)
-
-    def showLogs_(self, sender):
-        LogWindowController.sharedController().showWindow_(sender)
-    
-    def toolbarAllowedItemIdentifiers_(self, toolbar):
-        return [NSToolbarToggleSidebarItemIdentifier, NSToolbarSidebarTrackingSeparatorItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier]
-
-    def toolbarDefaultItemIdentifiers_(self, toolbar):
-        return [NSToolbarToggleSidebarItemIdentifier, NSToolbarSidebarTrackingSeparatorItemIdentifier, NSToolbarFlexibleSpaceItemIdentifier]
-    
-    def toolbar_itemForItemIdentifier_willBeInsertedIntoToolbar_(self, toolbar, identifier, flag):
-        if identifier == NSToolbarToggleSidebarItemIdentifier:
-            item = NSToolbarItem.alloc().initWithItemIdentifier_(identifier)
-            item.setLabel_("Sidebar")
-            item.setPaletteLabel_("Toggle Sidebar")
-            item.setTarget_(self.splitVC)
-            item.setAction_("toggleSidebar:")
-            return item
+    def set_busy(self, is_busy):
+        self.url_row.set_enabled(not is_busy)
+        if not is_busy:
+            self.url_row.clear_url()
 
 
 def main():
-    app = NSApplication.sharedApplication()
-    delegate = AppDelegate.alloc().init()
-    app.setDelegate_(delegate)
-    app.run()
+    app = QApplication(sys.argv)
+    app.setApplicationName("MediaExt")
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
