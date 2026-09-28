@@ -2,6 +2,7 @@ import os
 import sys
 import threading
 from enum import Enum
+from utils.qt_icons import app_icon
 from utils.theme import get_theme, refresh_theme
 from utils.url_validator import YtValidator
 from views.menu import build_menu_bar
@@ -115,7 +116,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        # self.setWindowIcon(app_icon()) TODO: check if on windows this is still necessary considering build embeds .ico
+        self.setWindowIcon(app_icon())
         self.setWindowTitle("Media.Ext")
         self.resize(840, 620)
         self.setMinimumSize(600, 360)
@@ -315,6 +316,7 @@ class MainWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("MediaExt")
+    app.setWindowIcon(app_icon())
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

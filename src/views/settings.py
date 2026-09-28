@@ -9,7 +9,7 @@ class SettingsWindow(QDialog):
     def __init__(self, user_defaults: UserDefaults, parent=None):
         super().__init__(parent, Qt.WindowType.Window)
         self.user_defaults = user_defaults
-        self.setWindowTitle("Preferences")
+        self.setWindowTitle("Settings")
         self.resize(400, 180)
         self.setMinimumSize(360, 140)
 

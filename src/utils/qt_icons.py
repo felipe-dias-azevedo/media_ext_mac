@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 from PyQt6.QtGui import QColor, QIcon
 import qtawesome as qta
 
-_APP_ICON_PATH = Path(__file__).resolve().parents[2] / "icon" / "icon_1024.png"
+_BUNDLE_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+_APP_ICON_NAME = "icon_borderless_1024.png" if sys.platform == "win32" else "icon_1024.png"
+_APP_ICON_PATH = _BUNDLE_ROOT / "icon" / _APP_ICON_NAME
 
 _QTA_NAMES = {
     "checkmark.circle.fill": "fa6s.circle-check",

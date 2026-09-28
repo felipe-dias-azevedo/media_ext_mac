@@ -1,11 +1,12 @@
 $ErrorActionPreference = 'Stop'
 
 if ($env:GITHUB_REF_NAME) {
-    $VERSION = $env:GITHUB_REF_NAME -replace '^v', ''
+  $VERSION = $env:GITHUB_REF_NAME
 } else {
     $VERSION = git tag --sort=-version:refname | Select-Object -First 1
 }
 
+$VERSION = $VERSION -replace '^v', ''
 $V = $VERSION -split '\.'
 $VERSION_INFO = "$($V[0]),$($V[1]),$($V[2]),0"
 
@@ -42,6 +43,7 @@ python -m PyInstaller `
     --windowed `
     --icon icon.ico `
     --version-file version_info.txt `
+    --add-data "icon/icon_borderless_1024.png;icon" `
     --hidden-import=yt_dlp `
     --hidden-import=imageio_ffmpeg `
     src/app.py

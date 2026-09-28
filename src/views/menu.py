@@ -1,4 +1,6 @@
 
+import sys
+
 from PyQt6.QtCore import (
     QSize,
 )
@@ -39,13 +41,15 @@ def _show_about_dialog(window):
 
 def build_menu_bar(window: QMainWindow):
     menubar = window.menuBar()
+    is_macos = sys.platform == "darwin"
 
     file_menu = menubar.addMenu("&File")
 
     about_action = QAction("About MediaExt", window)
     about_action.triggered.connect(lambda: _show_about_dialog(window))
-    file_menu.addAction(about_action)
-    file_menu.addSeparator()
+    if is_macos:
+        file_menu.addAction(about_action)
+        file_menu.addSeparator()
 
     preferences_action = QAction("Settings", window)
     preferences_action.setMenuRole(QAction.MenuRole.PreferencesRole)
@@ -61,7 +65,7 @@ def build_menu_bar(window: QMainWindow):
 
     file_menu.addSeparator()
 
-    quit_action = QAction("Quit MediaExt", window)
+    quit_action = QAction("Quit MediaExt" if is_macos else "Exit", window)
     quit_action.setShortcut(QKeySequence("Ctrl+Q"))
     quit_action.triggered.connect(QApplication.instance().quit)
     file_menu.addAction(quit_action)
@@ -92,4 +96,7 @@ def build_menu_bar(window: QMainWindow):
 
     help_menu = menubar.addMenu("&Help")
     help_menu.addAction(QAction("MediaExt Help", window))  # no-op, matches original
+    if not is_macos:
+        help_menu.addSeparator()
+        help_menu.addAction(about_action)
 
