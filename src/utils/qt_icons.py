@@ -16,6 +16,7 @@ _QTA_NAMES = {
     "doc.on.clipboard": "fa6.paste",
     "gearshape": "fa6s.gear",
     "chevron.down": "fa5s.chevron-down",
+    "folder.open": "fa6.folder-open",
 }
 
 _symbol_icon_cache: dict[tuple[str, str], QIcon] = {}

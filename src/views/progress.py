@@ -5,6 +5,7 @@ from PyQt6.QtCore import (
     QEasingCurve,
     QParallelAnimationGroup,
     QPropertyAnimation,
+    QSize,
     Qt,
 )
 from PyQt6.QtGui import (
@@ -18,6 +19,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QStackedLayout,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -26,9 +28,6 @@ from utils.qt_icons import create_symbol
 from utils.theme import Theme, get_theme
 from views.current_step_separator import CurrentStepSeparator
 from views.spinner import SpinnerWidget
-
-
-# TODO: add an optional button on the right side with custom lambda functionality
 
 
 @dataclass
@@ -65,6 +64,152 @@ class IconView(QWidget):
 
 
 class StepRowView(QWidget):
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.icon_view = IconView(18)
+
+        self.spinner = SpinnerWidget(16)
+
+        self.leading = QWidget()
+        self.leading.setFixedSize(18, 18)
+        leading_stack = QStackedLayout(self.leading)
+        leading_stack.setContentsMargins(0, 0, 0, 0)
+        leading_stack.addWidget(self.icon_view)
+        leading_stack.addWidget(self.spinner)
+        self._leading_stack = leading_stack
+
+        self.title_label = QLabel()
+        title_font = self.title_label.font()
+        title_font.setWeight(QFont.Weight.DemiBold)
+        self.title_label.setFont(title_font)
+
+        self._symbol_name = None
+        self._action_icon_name = None
+        self.description_label = QLabel()
+        desc_font = self.description_label.font()
+        desc_font.setPointSize(max(desc_font.pointSize() - 1, 9))
+        self.description_label.setFont(desc_font)
+        self.description_label.hide()
+
+        self.action_button = QToolButton()
+        self.action_button.setFixedSize(28, 28)
+        self.action_button.setIconSize(QSize(16, 16))
+        self.action_button.setAutoRaise(True)
+        self.action_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.action_button.hide()
+
+        text_stack = QVBoxLayout()
+        text_stack.setSpacing(2)
+        text_stack.setContentsMargins(0, 0, 0, 0)
+        text_stack.addWidget(self.title_label)
+        text_stack.addWidget(self.description_label)
+
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(12)
+        root.addWidget(self.leading, 0, Qt.AlignmentFlag.AlignVCenter)
+        root.addLayout(text_stack, 1)
+        root.addWidget(self.action_button, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        self.leading.hide()
+        self.apply_theme()
+
+    def apply_theme(self):
+        theme = get_theme()
+        self.description_label.setStyleSheet(f"color: {Theme.rgba(theme.secondary_text)};")
+        self.action_button.setStyleSheet(
+            "QToolButton {"
+            "  border: none;"
+            "  background: transparent;"
+            "  border-radius: 6px;"
+            "  padding: 6px;"
+            "}"
+            f"QToolButton:hover {{ background-color: {Theme.rgba(theme.hover_fill)}; }}"
+            f"QToolButton:pressed {{ background-color: {Theme.rgba(theme.pressed_fill)}; }}"
+        )
+        if self._action_icon_name:
+            self.action_button.setIcon(create_symbol(self._action_icon_name, theme.icon_secondary))
+        if self._symbol_name:
+            if self._symbol_name == "checkmark.circle.fill":
+                color = theme.success
+            elif self._symbol_name == "xmark.circle.fill":
+                color = theme.error
+            else:
+                color = theme.icon_secondary
+            self.icon_view.set_icon(create_symbol(self._symbol_name, color))
+
+    # ----- state -----
+
+    def set_title_description(self, title, description=None):
+        self.title_label.setText(title)
+        if description:
+            self.description_label.setText(str(description))
+            self.description_label.show()
+        else:
+            self.description_label.clear()
+            self.description_label.hide()
+
+    def set_icon(self, symbol_name, color=None):
+        self.spinner.stop()
+        self.leading.show()
+        self._symbol_name = symbol_name
+        if color is None:
+            color = get_theme().icon_secondary
+        self.icon_view.set_icon(create_symbol(symbol_name, color))
+        self._leading_stack.setCurrentWidget(self.icon_view)
+
+    def set_loading(self):
+        self.leading.show()
+        self._leading_stack.setCurrentWidget(self.spinner)
+        self.spinner.start()
+
+    def set_success(self):
+        self.set_icon("checkmark.circle.fill", get_theme().success)
+
+    def set_error(self):
+        self.set_icon("xmark.circle.fill", get_theme().error)
+
+    def set_action(self, callback, icon, tooltip):
+        self._action_icon_name = icon
+        self.action_button.setIcon(create_symbol(icon, get_theme().icon_secondary))
+        self.action_button.setToolTip(tooltip)
+        self.action_button.setAccessibleName(tooltip)
+        self.action_button.clicked.connect(callback)
+        self.action_button.show()
+
+
+class ProgressStepsView(QWidget):
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.current_row = None
+        self._rows = []
+
+        self.background = QFrame(self)
+        self.background.setObjectName("progressBackground")
+
+        self.stack_layout = QVBoxLayout(self.background)
+        self.stack_layout.setContentsMargins(10, 10, 10, 10)
+        self.stack_layout.setSpacing(10)
+        self.stack_layout.addStretch(1)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self.background)
+        self.apply_theme()
+
+    def apply_theme(self):
+        theme = get_theme()
+        self.background.setStyleSheet(
+            "#progressBackground {"
+            f"  background-color: {Theme.rgba(theme.fill)};"
+            f"  border: 1px solid {Theme.rgba(theme.separator)};"
+            "  border-radius: 6px;"
+            "}"
+        )
+        self.titleLabel.setAlignment_(NSLeftTextAlignment)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -250,8 +395,23 @@ class ProgressStepsView(QWidget):
         if description is not None:
             self.current_row.set_title_description(self.current_row.title_label.text(), description)
 
-    def finish_current_step_success(self, title, description=None):
+    def finish_current_step_success(self, title, description=None, action=None):
         if not self.current_row:
+            return
+        self.current_row.set_title_description(title, description)
+        self.current_row.set_success()
+        if action is not None:
+            callback, icon, tooltip = action
+            self.current_row.set_action(callback, icon, tooltip)
+        self.current_row = None
+
+    def finishCurrentStepSuccess_description_(
+        self,
+        title,
+        description=None,
+    ):
+
+        if not self.currentRow:
             return
         self.current_row.set_title_description(title, description)
         self.current_row.set_success()

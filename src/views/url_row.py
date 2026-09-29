@@ -27,8 +27,6 @@ from utils.url_validator import YtValidator
 
 class URLRowView(QWidget):
 
-    ACCENT = "#0A84FF"
-
     def __init__(self, on_extract, parent=None):
         super().__init__(parent)
         self.setFixedHeight(32)
@@ -43,7 +41,8 @@ class URLRowView(QWidget):
         self.url_field = QLineEdit()
         self.url_field.setFrame(False)
         self.url_field.setPlaceholderText("Paste a video link")
-        self.url_field.setStyleSheet("background: transparent; border: none;")
+        self.url_field.setObjectName("urlField")
+        self.url_field.setStyleSheet("QLineEdit#urlField { background: transparent; border: none; }")
         self.url_field.returnPressed.connect(on_extract)
 
         self.paste_button = QToolButton()
@@ -55,7 +54,7 @@ class URLRowView(QWidget):
         self.paste_button.clicked.connect(self._paste_url)
 
         row = QHBoxLayout(self.container)
-        row.setContentsMargins(10, 0, 1, 0)
+        row.setContentsMargins(10, 0, 2, 0)
         row.setSpacing(10)
         row.addWidget(self.url_inline_label)
         row.addWidget(self.url_field, 1)
@@ -93,7 +92,7 @@ class URLRowView(QWidget):
             "QToolButton {"
             "  border: none;"
             "  background: transparent;"
-            "  border-radius: 4px;"
+            "  border-radius: 6px;"
             "  padding: 4px;"
             "}"
             f"QToolButton:hover {{ background-color: {Theme.rgba(theme.hover_fill)}; }}"
@@ -101,7 +100,7 @@ class URLRowView(QWidget):
         )
         self.extract_button.setStyleSheet(
             "QPushButton {"
-            f"  background-color: {self.ACCENT};"
+            f"  background-color: {Theme.rgba(theme.accent)};"
             "  color: white;"
             "  border: none;"
             "  border-radius: 6px;"

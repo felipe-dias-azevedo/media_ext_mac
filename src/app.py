@@ -12,6 +12,41 @@ from views.log_window import LogWindow
 from views.settings import SettingsWindow
 from utils.user_defaults import UserDefaults
 from utils.notifications import send_notification
+from utils.file_manager import reveal_in_file_manager
+
+from PyQt6.QtCore import (
+    QObject,
+    pyqtSignal,
+)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QFrame,
+    QMainWindow,
+    QMessageBox,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
+
+# The downloader service is kept as-is and referenced later — see module
+# docstring above. This import is left in place on purpose.
+from services.downloader import Downloader
+from views.progress import ProgressStepsView
+from utils.user_defaults import UserDefaults
+from utils.notifications import send_notification
+from views.url_row import URLRowView
+from enum import Enum
+from utils.qt_icons import app_icon
+from utils.theme import get_theme, refresh_theme
+from utils.url_validator import YtValidator
+from views.menu import build_menu_bar
+from views.progress import ProgressStepsView
+from views.url_row import URLRowView
+from views.log_window import LogWindow
+from views.settings import SettingsWindow
+from utils.user_defaults import UserDefaults
+from utils.notifications import send_notification
 
 from PyQt6.QtCore import (
     QObject,
@@ -118,8 +153,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowIcon(app_icon())
         self.setWindowTitle("Media.Ext")
-        self.resize(840, 620)
-        self.setMinimumSize(600, 360)
+        self.resize(640, 420)
+        self.setMinimumSize(480, 380)
 
         self.log_window = LogWindow(self)
         self.user_defaults = UserDefaults()
@@ -204,8 +239,9 @@ class MainWindow(QMainWindow):
             box.setIcon(QMessageBox.Icon.Information)
             box.setWindowTitle("Playlist Detected")
             box.setText(
-                "This URL contains a playlist. Would you like to download the "
-                "entire playlist or only the current media?"
+                "This URL contains a playlist. Would you like to download "
+                # "the entire playlist or only the current media?"
+                "only the current media?"
             )
             current_btn = box.addButton("Current Media", QMessageBox.ButtonRole.AcceptRole)
             box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
@@ -287,7 +323,13 @@ class MainWindow(QMainWindow):
                 return
 
             self.progress_steps.finish_current_step_success(
-                "Save File Completed", "File: " + os.path.basename(save_path)
+                "Save File Completed",
+                "File: " + os.path.basename(save_path),
+                action=(
+                    lambda: reveal_in_file_manager(save_path),
+                    "folder.open",
+                    "Open File Location",
+                ),
             )
             # History sidebar is out of scope for this port; this is where
             # sidebarVC.addRowToSidebar_(media_item) used to be called.

@@ -46,6 +46,7 @@ def build_menu_bar(window: QMainWindow):
     file_menu = menubar.addMenu("&File")
 
     about_action = QAction("About MediaExt", window)
+    about_action.setMenuRole(QAction.MenuRole.AboutRole)
     about_action.triggered.connect(lambda: _show_about_dialog(window))
     if is_macos:
         file_menu.addAction(about_action)
@@ -66,6 +67,7 @@ def build_menu_bar(window: QMainWindow):
     file_menu.addSeparator()
 
     quit_action = QAction("Quit MediaExt" if is_macos else "Exit", window)
+    quit_action.setMenuRole(QAction.MenuRole.QuitRole)
     quit_action.setShortcut(QKeySequence("Ctrl+Q"))
     quit_action.triggered.connect(QApplication.instance().quit)
     file_menu.addAction(quit_action)
