@@ -44,6 +44,7 @@ VSVersionInfo(
 "@ | Set-Content version_info.txt
 
 python -m PyInstaller `
+    --onefile `
     --name MediaExt `
     --windowed `
     --icon icon.ico `
