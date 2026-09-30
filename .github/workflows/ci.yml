@@ -111,4 +111,4 @@ jobs:
       - name: Verify build output
         run: |
           if (-not (Test-Path dist)) { throw 'dist directory was not created' }
-          if (-not (Test-Path dist/MediaExt/MediaExt.exe)) { throw 'MediaExt.exe was not created' }
+          if (-not (Test-Path dist/MediaExt.exe)) { throw 'MediaExt.exe was not created' }

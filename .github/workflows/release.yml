@@ -143,10 +143,10 @@ jobs:
 
       - name: Verify build output
         run: |
-          if (-not (Test-Path dist/MediaExt/MediaExt.exe)) { throw 'MediaExt.exe was not created' }
+          if (-not (Test-Path dist/MediaExt.exe)) { throw 'MediaExt.exe was not created' }
 
       - name: Package Windows application
-        run: Compress-Archive -Path dist/MediaExt -DestinationPath MediaExt-Windows-x64.zip
+        run: Compress-Archive -Path dist/MediaExt.exe -DestinationPath MediaExt-Windows-x64.zip
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v7
