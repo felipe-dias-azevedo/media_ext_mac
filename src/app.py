@@ -326,7 +326,7 @@ class MainWindow(QMainWindow):
                 "Save File Completed",
                 "File: " + os.path.basename(save_path),
                 action=(
-                    lambda: reveal_in_file_manager(save_path),
+                    lambda: self._reveal_saved_file(save_path),
                     "folder.open",
                     "Open File Location",
                 ),
@@ -338,6 +338,16 @@ class MainWindow(QMainWindow):
             self.progress_steps.finish_current_step_error("Save Failed", str(e))
         finally:
             self.set_busy(False)
+
+    def _reveal_saved_file(self, path):
+        if not os.path.exists(path):
+            QMessageBox.warning(
+                self,
+                "File Unavailable",
+                "This file is no longer available. It may have been moved or deleted.",
+            )
+            return
+        reveal_in_file_manager(path)
 
     def _present_save_panel(self, src_path):
         suggested = os.path.basename(src_path)
