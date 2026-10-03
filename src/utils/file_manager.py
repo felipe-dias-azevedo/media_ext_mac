@@ -1,6 +1,7 @@
 import os
 import sys
 import shutil
+import subprocess
 from PyQt6.QtCore import QProcess, QUrl
 from PyQt6.QtGui import QDesktopServices
 
@@ -12,8 +13,8 @@ def reveal_in_file_manager(path: str) -> None:
         QProcess.startDetached("open", ["-R", path])
 
     elif sys.platform == "win32":
-        # Note: "/select," and the path must be ONE argument on Windows
-        QProcess.startDetached("explorer.exe", [f"/select,{os.path.normpath(path)}"])
+        windows_path = os.path.normpath(path)
+        subprocess.Popen(f'explorer.exe /select,"{windows_path}"', close_fds=True)
 
     else:
         # Linux: try the freedesktop FileManager1 D-Bus interface (selects the file)
